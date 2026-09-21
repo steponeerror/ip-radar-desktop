@@ -24,3 +24,4 @@ src-tauri/gen/schemas
 yarn-debug.log*
 yarn-error.log*
 docs/
+ui-preview.png

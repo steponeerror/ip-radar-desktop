@@ -17,7 +17,7 @@ import { nextPollDelay } from "./warming";
 import { ResultList } from "./components/ResultList";
 import { ResultDetail } from "./components/ResultDetail";
 import { SettingsPage } from "./components/SettingsPage";
-import { Gear } from "@phosphor-icons/react";
+import { Gear, Minus, X } from "@phosphor-icons/react";
 
 type View = "input" | "querying" | "list" | "detail" | "settings";
 
@@ -253,21 +253,46 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const invalidLines = invalidLinesOf(results);
 
   return (
-    <div className="flex h-screen w-full flex-col bg-zinc-950 text-zinc-200">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-        <span className={TECH_LABEL}>{t("app.title")}</span>
-        <button
-          aria-label="settings"
-          onClick={() => {
-            if (view !== "settings") {
-              setReturnView(view);
-              setView("settings");
-            }
-          }}
-          className="rounded-md p-1.5 text-zinc-500 transition active:scale-[0.95] hover:bg-zinc-800 hover:text-zinc-300"
-        >
-          <Gear size={16} />
-        </button>
+    <div className="dot-grid flex h-screen w-full flex-col bg-zinc-950 text-zinc-100">
+      <header
+        data-tauri-drag-region
+        className="flex items-center justify-between border-b border-zinc-800 px-4 py-2"
+      >
+        <span data-tauri-drag-region className={`${TECH_LABEL} select-none`}>
+          {t("app.title")}
+        </span>
+        <div className="flex items-center gap-0.5">
+          {import.meta.env.DEV && (
+            <>
+              <button
+                aria-label="minimize"
+                onClick={() => void import("@tauri-apps/api/window").then(m => m.getCurrentWindow().minimize())}
+                className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
+              >
+                <Minus size={14} />
+              </button>
+              <button
+                aria-label="close"
+                onClick={() => void import("@tauri-apps/api/window").then(m => m.getCurrentWindow().close())}
+                className="rounded-md p-1.5 text-zinc-500 transition hover:bg-red-500/15 hover:text-red-400"
+              >
+                <X size={14} />
+              </button>
+            </>
+          )}
+          <button
+            aria-label="settings"
+            onClick={() => {
+              if (view !== "settings") {
+                setReturnView(view);
+                setView("settings");
+              }
+            }}
+            className="rounded-md p-1.5 text-zinc-500 transition active:scale-[0.95] hover:bg-zinc-800 hover:text-zinc-300"
+          >
+            <Gear size={16} />
+          </button>
+        </div>
       </header>
 
       {warming && (
@@ -306,11 +331,11 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                     if (e.key === "Enter") submitInput();
                   }}
                   placeholder={t("query.placeholder")}
-                  className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-200 transition-colors placeholder:font-sans placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500/30"
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-200 transition-colors placeholder:font-sans placeholder:text-zinc-600 focus:border-emerald-600 focus:outline-none"
                 />
                 <button
                   onClick={submitInput}
-                  className="self-end rounded-md bg-zinc-100 px-3.5 py-1.5 text-xs font-medium text-zinc-950 transition active:scale-[0.98] hover:bg-white"
+                  className="self-end rounded-md bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-zinc-950 transition hover:scale-[1.02] active:scale-[0.98]"
                 >
                   {t("query.go")}
                 </button>

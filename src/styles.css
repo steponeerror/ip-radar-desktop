@@ -1,4 +1,23 @@
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/geist";
 @import "tailwindcss";
+
+/* 字体系统:自托管 JetBrains Mono(telemetry mono,brutalist §3.2)+ Geist(sans),
+ 两端(Windows WebView2 / WSL WebKitGTK)渲染一致,不再回退 DejaVu;
+ CJK 回退链交给系统(Noto Sans CJK SC / 微软雅黑)。 */
+@theme {
+  --font-sans: "Geist Variable", "Noto Sans CJK SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "Noto Sans Mono CJK SC", ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+/* server 同源点阵纹理(ip-lookup-tool index.css):1px 点、24px 网格 */
+:root {
+  --dot: #27272a;
+}
+.dot-grid {
+  background-image: radial-gradient(circle, var(--dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
 
 /* 暗色工具窗打磨:细滚动条 + 安静选区色(zinc 基调) */
 * {
