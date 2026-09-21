@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxIps: 100,
   hotkey: "CmdOrCtrl+Alt+I",
   language: "auto",
+  theme: "dark",
   sourceEnabled: { ipradar: true, abuseipdb: true },
   showMissingKey: false,
   autostart: false,

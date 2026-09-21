@@ -25,6 +25,7 @@ export interface Settings {
   maxIps: number;
   hotkey: string;
   language: "auto" | "zh" | "en";
+  theme: "dark" | "light" | "auto";
   sourceEnabled: Record<string, boolean>;
   showMissingKey: boolean;
   autostart: boolean;

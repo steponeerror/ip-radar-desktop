@@ -11,13 +11,13 @@ import { getSources } from "./sources/registry";
 import { runSources } from "./sources/_scheduler";
 import { TECH_LABEL } from "./components/badges";
 import type { Settings, SourceSection } from "./sources/_types";
-import { DEFAULT_SETTINGS, loadSettings } from "./settings";
+import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
 import { I18nProvider, useI18n, type Pref } from "./i18n";
 import { nextPollDelay } from "./warming";
 import { ResultList } from "./components/ResultList";
 import { ResultDetail } from "./components/ResultDetail";
 import { SettingsPage } from "./components/SettingsPage";
-import { Gear, Minus, X } from "@phosphor-icons/react";
+import { Gear, Minus, X, Moon, Sun } from "@phosphor-icons/react";
 
 type View = "input" | "querying" | "list" | "detail" | "settings";
 
@@ -243,6 +243,21 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
 
   useEffect(() => () => stopWarmingPoll(), [stopWarmingPoll]);
 
+  // 主题应用:dark 默认;auto 跟系统。异步 store 读取后生效(极短暗闪可接受, ponytail: 同步缓存可消除)
+  useEffect(() => {
+    const light =
+      settings.theme === "light" ||
+      (settings.theme === "auto" && window.matchMedia("(prefers-color-scheme: light)").matches);
+    document.documentElement.classList.toggle("light", light);
+  }, [settings.theme]);
+
+  const toggleTheme = () => {
+    const next: Settings["theme"] = document.documentElement.classList.contains("light") ? "dark" : "light";
+    const merged = { ...settings, theme: next };
+    onSettingsSaved(merged);
+    void saveSettings(merged);
+  };
+
   const submitInput = () => {
     if (!inputText.trim()) return;
     dispatch(inputText);
@@ -253,7 +268,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const invalidLines = invalidLinesOf(results);
 
   return (
-    <div className="dot-grid flex h-screen w-full flex-col bg-zinc-950 text-zinc-100">
+    <div className="dot-grid flex h-screen w-full flex-col overflow-hidden rounded-xl bg-zinc-950 text-zinc-100">
       <header
         data-tauri-drag-region
         className="flex items-center justify-between border-b border-zinc-800 px-4 py-2"
@@ -262,6 +277,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
           {t("app.title")}
         </span>
         <div className="flex items-center gap-0.5">
+          <button
+            aria-label="theme"
+            onClick={toggleTheme}
+            className="rounded-md p-1.5 text-zinc-500 transition active:scale-[0.95] hover:bg-zinc-800 hover:text-zinc-300"
+          >
+            {document.documentElement.classList.contains("light") ? <Moon size={15} /> : <Sun size={15} />}
+          </button>
           {import.meta.env.DEV && (
             <>
               <button
@@ -312,7 +334,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden">
+      <main key={view} className="fade-in flex-1 overflow-hidden">
         {view === "input" && (
           <div className="p-4">
             <div className="overflow-hidden rounded-lg border border-zinc-800">

@@ -19,10 +19,59 @@
   background-size: 24px 24px;
 }
 
+/* 透明圆角窗:页面背景让位,根容器负责全部涂装 */
+html,
+body {
+  background: transparent;
+}
+
+/* 白天模式:server index.css 的 .light 变量表逐字移植 —— Tailwind v4 工具类
+   编译为 var(--color-*),在此作用域重定义即全局换肤,组件零改动。 */
+.light {
+  --bg-body: #fafaf9;
+  --text-body: #1c1917;
+  --dot: #e7e5e4;
+  --color-zinc-950: #fafaf9;
+  --color-zinc-900: #f5f5f4;
+  --color-zinc-800: #e7e5e4;
+  --color-zinc-700: #d6d3d1;
+  --color-zinc-600: #a8a29e;
+  --color-zinc-500: #78716c;
+  --color-zinc-400: #57534e;
+  --color-zinc-300: #44403c;
+  --color-zinc-200: #292524;
+  --color-zinc-100: #1c1917;
+  --color-emerald-300: #7fae98;
+  --color-emerald-400: #43806a;
+  --color-emerald-500: #3f7157;
+  --color-red-300: #ef4444;
+  --color-red-400: #dc2626;
+  --color-red-500: #dc2626;
+  --color-amber-300: #d97706;
+  --color-amber-400: #b45309;
+  --color-amber-500: #d97706;
+  --color-sky-300: #0ea5e9;
+  --color-sky-400: #0369a1;
+  --color-sky-500: #0284c7;
+}
+
+/* 视图切换入场(server 同款):仅状态过渡反馈 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
 /* 暗色工具窗打磨:细滚动条 + 安静选区色(zinc 基调) */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: #52525b transparent;
 }
 ::-webkit-scrollbar {
   width: 6px;
@@ -43,7 +92,8 @@
 /* taste-skill §6.B:动效让位 reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
-  .animate-spin {
+  .animate-spin,
+  .fade-in {
     animation: none;
   }
 }

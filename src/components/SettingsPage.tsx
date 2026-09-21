@@ -212,6 +212,21 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
 
         <Section title={t("settings.secSystem")}>
           <div className="space-y-1">
+            <label className={LABEL_CLS} htmlFor="theme">
+              {t("settings.theme")}
+            </label>
+            <select
+              id="theme"
+              value={form.theme}
+              onChange={e => setForm(f => ({ ...f, theme: e.target.value as Settings["theme"] }))}
+              className={INPUT_CLS}
+            >
+              <option value="dark">{t("theme.dark")}</option>
+              <option value="light">{t("theme.light")}</option>
+              <option value="auto">{t("theme.auto")}</option>
+            </select>
+          </div>
+          <div className="space-y-1">
             <label className={LABEL_CLS} htmlFor="language">
               {t("settings.language")}
             </label>
