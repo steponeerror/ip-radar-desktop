@@ -34,6 +34,25 @@ function anyWarming(results: Map<string, SourceSection[]>): boolean {
   return false;
 }
 
+/** 无 key 引导卡:list 与 detail 两个视图共用(401 首启路径也能看到)。 */
+function GuidanceCard({ serverUrl, onGoSettings }: { serverUrl: string; onGoSettings: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="space-y-1 border-b border-amber-400/30 bg-amber-400/10 px-4 py-3">
+      <div className="text-sm text-amber-400">{t("guidance.noKey")}</div>
+      <div className="text-xs text-amber-400/70">
+        {t("guidance.adminHint", { url: serverUrl.replace(/\/+$/, "") })}
+      </div>
+      <button
+        onClick={onGoSettings}
+        className="rounded-md bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300 ring-1 ring-amber-500/25"
+      >
+        {t("guidance.goSettings")}
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   useEffect(() => {
@@ -68,12 +87,17 @@ function AppInner({ settings }: { settings: Settings }) {
   const lastIpsRef = useRef<string[]>([]);
   const lastTruncRef = useRef<{ total: number; max: number } | undefined>(undefined);
   const pollTimerRef = useRef<number | null>(null);
+  // 查询代际:旧查询在飞时新查询取代 → 旧响应丢弃,防陈旧覆盖
+  const queryEpochRef = useRef(0);
+  // 轮询代际:stop/start 均失效在飞 tick,防已停轮询重复触发重发
+  const pollIdRef = useRef(0);
   const runQueryRef = useRef<(ips: string[], trunc?: { total: number; max: number }) => Promise<void>>(
     async () => {},
   );
   const startWarmingRef = useRef<() => void>(() => {});
 
   const stopWarmingPoll = useCallback(() => {
+    pollIdRef.current += 1;               // 在飞的轮询 tick 全部失效
     if (pollTimerRef.current !== null) {
       clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
@@ -83,12 +107,14 @@ function AppInner({ settings }: { settings: Settings }) {
 
   const runQuery = useCallback(
     async (ips: string[], trunc?: { total: number; max: number }) => {
+      const epoch = ++queryEpochRef.current;
       stopWarmingPoll();
       lastIpsRef.current = ips;
       lastTruncRef.current = trunc;
       setTruncated(trunc ?? null);
       setView("querying");
       const map = await runSources(ips, getSources(), settingsRef.current);
+      if (epoch !== queryEpochRef.current) return;   // 被更新查询取代:丢弃陈旧结果
       setResults(map);
       setNoIpHint(false);
       if (ips.length === 1) {
@@ -106,12 +132,16 @@ function AppInner({ settings }: { settings: Settings }) {
 
   /** db-status 轮询:warming_up===false 后重发原查询(退避 5s×2 至 30s)。 */
   const startWarmingPoll = () => {
+    pollIdRef.current += 1;               // 新周期:旧周期残留 tick 失效
+    const myPoll = pollIdRef.current;
     setWarming(true);
     const tick = async (delay: number) => {
       try {
         const base = settingsRef.current.serverUrl.replace(/\/+$/, "");
         const r = await tauriFetch(`${base}/api/db-status`, { signal: AbortSignal.timeout(10_000) });
+        if (myPoll !== pollIdRef.current) return;
         const body = r.ok ? await r.json().catch(() => null) : null;
+        if (myPoll !== pollIdRef.current) return;
         if (body && body.warming_up === false) {
           pollTimerRef.current = null;
           setWarming(false);
@@ -121,6 +151,7 @@ function AppInner({ settings }: { settings: Settings }) {
       } catch {
         /* server 不可达:继续按退避轮询 */
       }
+      if (myPoll !== pollIdRef.current) return;
       const next = nextPollDelay(delay);
       pollTimerRef.current = window.setTimeout(() => void tick(next), next);
     };
@@ -144,16 +175,27 @@ function AppInner({ settings }: { settings: Settings }) {
   );
 
   // 快捷键唤起:emit 到达即读剪贴板一次(spec:不做持续监听)
+  // disposed-flag:cleanup 先于 listen promise resolve 时立即反注册,防泄漏/StrictMode 双挂载重复分发
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | undefined;
     listen<string>("hotkey-triggered", () => {
       readText()
         .then(text => dispatch(text ?? ""))
         .catch(() => dispatch(""));
     })
-      .then(u => (unlisten = u))
+      .then(u => {
+        if (disposed) {
+          u();
+          return;
+        }
+        unlisten = u;
+      })
       .catch(() => {});
-    return () => unlisten?.();
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, [dispatch]);
 
   // Esc 隐藏窗口(设置页除外,避免编辑中误关);命令 Task 9 落地,浏览器 dev 下 catch 吞掉
@@ -236,21 +278,13 @@ function AppInner({ settings }: { settings: Settings }) {
         {view === "list" && (
           <div className="flex h-full flex-col">
             {guidance && (
-              <div className="space-y-1 border-b border-amber-400/30 bg-amber-400/10 px-4 py-3">
-                <div className="text-sm text-amber-400">{t("guidance.noKey")}</div>
-                <div className="text-xs text-amber-400/70">
-                  {t("guidance.adminHint", { url: settings.serverUrl.replace(/\/+$/, "") })}
-                </div>
-                <button
-                  onClick={() => {
-                    setReturnView("list");
-                    setView("settings");
-                  }}
-                  className="rounded-md bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300 ring-1 ring-amber-500/25"
-                >
-                  {t("guidance.goSettings")}
-                </button>
-              </div>
+              <GuidanceCard
+                serverUrl={settings.serverUrl}
+                onGoSettings={() => {
+                  setReturnView("list");
+                  setView("settings");
+                }}
+              />
             )}
             <ResultList
               results={results}
@@ -264,17 +298,30 @@ function AppInner({ settings }: { settings: Settings }) {
         )}
 
         {view === "detail" && selectedIp && (
-          <ResultDetail
-            ip={selectedIp}
-            sections={detailSections}
-            settings={settings}
-            backLabel={fromList ? t("query.backToList") : t("common.back")}
-            onBack={() => setView(fromList ? "list" : "input")}
-            onGoSettings={() => {
-              setReturnView("detail");
-              setView("settings");
-            }}
-          />
+          <div className="flex h-full flex-col">
+            {guidance && (
+              <GuidanceCard
+                serverUrl={settings.serverUrl}
+                onGoSettings={() => {
+                  setReturnView("detail");
+                  setView("settings");
+                }}
+              />
+            )}
+            <div className="min-h-0 flex-1">
+              <ResultDetail
+                ip={selectedIp}
+                sections={detailSections}
+                settings={settings}
+                backLabel={fromList ? t("query.backToList") : t("common.back")}
+                onBack={() => setView(fromList ? "list" : "input")}
+                onGoSettings={() => {
+                  setReturnView("detail");
+                  setView("settings");
+                }}
+              />
+            </div>
+          </div>
         )}
 
         {view === "settings" && (
