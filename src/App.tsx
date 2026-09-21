@@ -315,8 +315,8 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       <main className="flex-1 overflow-hidden">
         {view === "input" && (
           <div className="p-4">
-            <div className="border border-zinc-800">
-              <div className="border-b border-zinc-800 px-3 py-1.5">
+            <div className="overflow-hidden rounded-lg border border-zinc-800">
+              <div className="border-b border-zinc-800 bg-zinc-900/60 px-3 py-1.5">
                 <span className={TECH_LABEL}>{t("query.sectionLabel")}</span>
               </div>
               <div className="space-y-2 p-3">
@@ -349,18 +349,18 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
           <div className="flex h-full flex-col overflow-hidden p-4">
             {queryingSingle ? (
               <div className="space-y-3">
-                <div className="border border-zinc-800">
-                  <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-                    <div className="h-5 w-44 animate-pulse bg-zinc-800" />
-                    <div className="h-4 w-14 animate-pulse bg-zinc-800" />
+                <div className="overflow-hidden rounded-lg border border-zinc-800">
+                  <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                    <div className="h-5 w-44 animate-pulse rounded bg-zinc-800" />
+                    <div className="h-4 w-14 animate-pulse rounded bg-zinc-800" />
                   </div>
-                  <div className="grid grid-cols-2 gap-px bg-zinc-800">
+                  <div className="grid grid-cols-2 gap-px bg-zinc-800/70">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="h-8 animate-pulse bg-zinc-950" />
                     ))}
                   </div>
                 </div>
-                <div className="h-16 animate-pulse border border-zinc-800" />
+                <div className="h-16 animate-pulse rounded-lg border border-zinc-800" />
               </div>
             ) : (
               <div className="space-y-3">

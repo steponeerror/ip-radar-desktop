@@ -23,8 +23,8 @@ const LABEL_CLS = "block text-xs font-medium text-zinc-400";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-zinc-800">
-      <div className="border-b border-zinc-800 px-3 py-1.5">
+    <div className="overflow-hidden rounded-lg border border-zinc-800">
+      <div className="border-b border-zinc-800 bg-zinc-900/60 px-3 py-1.5">
         <span className={TECH_LABEL}>{title}</span>
       </div>
       <div className="space-y-3 p-3">{children}</div>

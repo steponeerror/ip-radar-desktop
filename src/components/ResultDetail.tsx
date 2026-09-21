@@ -40,8 +40,8 @@ function Section({ title, right, children, tone }: {
   tone?: "error";
 }) {
   return (
-    <div className={`border ${tone === "error" ? "border-red-500/25 bg-red-500/5" : "border-zinc-800"}`}>
-      <div className={`flex items-center justify-between gap-2 border-b px-3 py-1.5 ${tone === "error" ? "border-red-500/20" : "border-zinc-800"}`}>
+    <div className={`overflow-hidden rounded-lg border ${tone === "error" ? "border-red-500/25 bg-red-500/5" : "border-zinc-800"}`}>
+      <div className={`flex items-center justify-between gap-2 border-b px-3 py-1.5 ${tone === "error" ? "border-red-500/20 bg-red-500/5" : "border-zinc-800 bg-zinc-900/60"}`}>
         <span className={tone === "error" ? "font-mono text-[10px] uppercase tracking-[0.1em] text-red-400" : TECH_LABEL}>{title}</span>
         {right}
       </div>
@@ -56,8 +56,8 @@ function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
   const city = d?.city?.value && d.city.value !== "N/A" ? d.city.value : undefined;
   const cityZh = d?.city_zh ?? undefined;
   return (
-    <div className="border border-zinc-800">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 px-3 py-2.5">
+    <div className="overflow-hidden rounded-lg border border-zinc-800">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
         <h2 className="min-w-0 truncate font-mono text-xl tracking-tight text-zinc-100" title={ip}>{ip}</h2>
         {d?.is_reserved ? (
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE.reserved}`}>
@@ -81,7 +81,7 @@ function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
           ))}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-px bg-zinc-800">
+      <div className="grid grid-cols-2 gap-px bg-zinc-800/70">
         <Cell label={t("column.country")} value={d?.country?.value} />
         <Cell label={t("column.city")} value={cityZh ? `${city ?? ""}(${cityZh})` : city} />
         <Cell label="ASN" value={d?.asn?.value} />
@@ -125,13 +125,13 @@ function AbuseCard({ a }: { a: AbuseSection }) {
   const { t } = useI18n();
   return (
     <Section title={t("src.abuseipdb")} right={<span className="font-mono text-sm text-zinc-200">{a.score}/100</span>}>
-      <div className="mb-3 h-1 w-full bg-zinc-800">
+      <div className="mb-3 h-1 w-full rounded-full bg-zinc-800">
         <div
-          className={`h-1 ${scoreTone(a.score)}`}
+          className={`h-1 rounded-full ${scoreTone(a.score)}`}
           style={{ width: `${Math.min(Math.max(a.score, 0), 100)}%` }}
         />
       </div>
-      <div className="-mx-3 -mb-3 grid grid-cols-2 gap-px bg-zinc-800">
+      <div className="-mx-3 -mb-3 grid grid-cols-2 gap-px bg-zinc-800/70">
         <Cell label={t("abuse.country")} value={a.countryCode} />
         <Cell label={t("abuse.isp")} value={a.isp} />
         <Cell label={t("abuse.usage")} value={a.usageType} />
