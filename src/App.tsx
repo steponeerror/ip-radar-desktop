@@ -15,6 +15,7 @@ import { I18nProvider, useI18n, type Pref } from "./i18n";
 import { nextPollDelay } from "./warming";
 import { ResultList } from "./components/ResultList";
 import { ResultDetail } from "./components/ResultDetail";
+import { SettingsPage } from "./components/SettingsPage";
 
 type View = "input" | "querying" | "list" | "detail" | "settings";
 
@@ -63,12 +64,12 @@ export default function App() {
       preference={settings.language}
       setPreference={(p: Pref) => setSettings(s => ({ ...s, language: p }))}
     >
-      <AppInner settings={settings} />
+      <AppInner settings={settings} onSettingsSaved={setSettings} />
     </I18nProvider>
   );
 }
 
-function AppInner({ settings }: { settings: Settings }) {
+function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSettingsSaved: (s: Settings) => void }) {
   const { t } = useI18n();
   const [view, setView] = useState<View>("input");
   const [results, setResults] = useState<Map<string, SourceSection[]>>(new Map());
@@ -228,6 +229,18 @@ function AppInner({ settings }: { settings: Settings }) {
     <div className="flex h-screen w-full flex-col bg-zinc-950 text-zinc-200">
       <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
         <span className="text-sm font-medium text-zinc-400">{t("app.title")}</span>
+        <button
+          aria-label="settings"
+          onClick={() => {
+            if (view !== "settings") {
+              setReturnView(view);
+              setView("settings");
+            }
+          }}
+          className="rounded-md p-1 text-base text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+        >
+          ⚙
+        </button>
       </header>
 
       {warming && (
@@ -325,15 +338,11 @@ function AppInner({ settings }: { settings: Settings }) {
         )}
 
         {view === "settings" && (
-          <div className="flex flex-col gap-3 p-4">
-            <button
-              onClick={() => setView(returnView)}
-              className="self-start rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-            >
-              ← {t("common.back")}
-            </button>
-            <p className="text-xs text-zinc-600">settings — Task 8</p>
-          </div>
+          <SettingsPage
+            initial={settings}
+            onSaved={onSettingsSaved}
+            onClose={() => setView(returnView)}
+          />
         )}
       </main>
     </div>
