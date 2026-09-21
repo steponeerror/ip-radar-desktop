@@ -1,5 +1,5 @@
 // 多 IP 紧凑行列表:IP · verdict 徽章 · 国家 · ASN 名;点行进详情。
-// 行徽章 = ipradar 源 fused verdict(唯一融合语义);源缺/禁用/错误 → "—"。
+// 行徽章 = ipradar 源 fused verdict(唯一融合语义);源缺/禁用/错误 → "-"。
 import type { SourceSection } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
 import { VERDICT_STYLE } from "./badges";
@@ -35,21 +35,21 @@ export function ResultList({
           <button
             key={ip}
             onClick={() => onSelect(ip)}
-            className="flex w-full items-center gap-3 border-b border-zinc-800/60 px-4 py-2.5 text-left hover:bg-zinc-900"
+            className="flex w-full items-center gap-3 border-b border-zinc-800/60 px-4 py-2.5 text-left transition-colors hover:bg-zinc-900 focus-visible:bg-zinc-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-zinc-700 active:bg-zinc-800/70"
           >
             <span className="font-mono text-sm text-zinc-200">{ip}</span>
             {verdict ? (
               <span
-                className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}
+                className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}
               >
                 {t(`verdict.${verdict}`)}
               </span>
             ) : (
-              <span className="text-[11px] text-zinc-700">—</span>
+              <span className="text-[11px] text-zinc-700">-</span>
             )}
-            <span className="ml-auto truncate text-xs text-zinc-500">{d?.country?.value ?? "—"}</span>
+            <span className="ml-auto truncate text-xs text-zinc-500">{d?.country?.value ?? "-"}</span>
             <span className="w-28 shrink-0 truncate text-right text-xs text-zinc-500">
-              {d?.as_name?.value ?? "—"}
+              {d?.as_name?.value ?? "-"}
             </span>
           </button>
         );

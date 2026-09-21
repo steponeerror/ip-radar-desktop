@@ -8,6 +8,7 @@ import { saveSettings } from "../settings";
 import { getSources } from "../sources/registry";
 import { useI18n } from "../i18n";
 import { buildAccel } from "../hotkeyAccel";
+import { ArrowLeft } from "@phosphor-icons/react";
 
 interface Props {
   initial: Settings;
@@ -16,7 +17,7 @@ interface Props {
 }
 
 const INPUT_CLS =
-  "w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20";
+  "w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 transition-colors placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500/30";
 const LABEL_CLS = "block text-xs font-medium text-zinc-400";
 
 export function SettingsPage({ initial, onSaved, onClose }: Props) {
@@ -93,9 +94,9 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
       <div className="flex items-center border-b border-zinc-800 px-4 py-2">
         <button
           onClick={onClose}
-          className="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-500 transition active:scale-[0.97] hover:bg-zinc-800 hover:text-zinc-300"
         >
-          ← {t("common.back")}
+          <ArrowLeft size={12} weight="bold" /> {t("common.back")}
         </button>
       </div>
 
@@ -166,7 +167,7 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
             </code>
             <button
               onClick={() => setCapturing(true)}
-              className="rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 transition-colors hover:text-zinc-100"
+              className="rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 transition active:scale-[0.98] hover:bg-zinc-700 hover:text-zinc-100"
             >
               {t("settings.captureHotkey")}
             </button>
@@ -240,7 +241,7 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
       <div className="border-t border-zinc-800 p-4">
         <button
           onClick={() => void save()}
-          className="w-full rounded-md bg-emerald-600/90 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500"
+          className="w-full rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-950 transition active:scale-[0.98] hover:bg-white"
         >
           {t("settings.save")}
         </button>

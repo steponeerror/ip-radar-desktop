@@ -1,1 +1,30 @@
 @import "tailwindcss";
+
+/* 暗色工具窗打磨:细滚动条 + 安静选区色(zinc 基调) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::selection {
+  background: #52525b;
+  color: #fafafa;
+}
+
+/* taste-skill §6.B:动效让位 reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-spin {
+    animation: none;
+  }
+}

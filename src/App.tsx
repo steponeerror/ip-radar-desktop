@@ -16,6 +16,7 @@ import { nextPollDelay } from "./warming";
 import { ResultList } from "./components/ResultList";
 import { ResultDetail } from "./components/ResultDetail";
 import { SettingsPage } from "./components/SettingsPage";
+import { Gear } from "@phosphor-icons/react";
 
 type View = "input" | "querying" | "list" | "detail" | "settings";
 
@@ -56,7 +57,7 @@ function GuidanceCard({ serverUrl, onGoSettings }: { serverUrl: string; onGoSett
       </div>
       <button
         onClick={onGoSettings}
-        className="rounded-md bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300 ring-1 ring-amber-500/25"
+        className="rounded-md bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300 ring-1 ring-amber-500/25 transition active:scale-[0.98] hover:bg-amber-500/25"
       >
         {t("guidance.goSettings")}
       </button>
@@ -89,6 +90,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const [warming, setWarming] = useState(false);
   const [inputText, setInputText] = useState("");
   const [noIpHint, setNoIpHint] = useState(false);
+  const [queryingSingle, setQueryingSingle] = useState(false);
   const [returnView, setReturnView] = useState<View>("input");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -123,6 +125,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       lastIpsRef.current = ips;
       lastTruncRef.current = trunc;
       setTruncated(trunc ?? null);
+      setQueryingSingle(ips.length === 1);
       setView("querying");
       // 纵深防御(C1):调度器已把单源异常转 error section,这里兑底任何漏网异常,
       // 保证绝不永久停在 querying 视图
@@ -251,7 +254,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   return (
     <div className="flex h-screen w-full flex-col bg-zinc-950 text-zinc-200">
       <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-        <span className="text-sm font-medium text-zinc-400">{t("app.title")}</span>
+        <span className="text-sm font-medium text-zinc-300">{t("app.title")}</span>
         <button
           aria-label="settings"
           onClick={() => {
@@ -260,9 +263,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
               setView("settings");
             }
           }}
-          className="rounded-md p-1 text-base text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+          className="rounded-md p-1.5 text-zinc-500 transition active:scale-[0.95] hover:bg-zinc-800 hover:text-zinc-300"
         >
-          ⚙
+          <Gear size={16} />
         </button>
       </header>
 
@@ -297,11 +300,11 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                 if (e.key === "Enter") submitInput();
               }}
               placeholder={t("query.placeholder")}
-              className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+              className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 transition-colors placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500/30"
             />
             <button
               onClick={submitInput}
-              className="self-end rounded-md bg-emerald-600/90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
+              className="self-end rounded-md bg-zinc-100 px-3.5 py-1.5 text-xs font-medium text-zinc-950 transition active:scale-[0.98] hover:bg-white"
             >
               {t("query.go")}
             </button>
@@ -310,9 +313,35 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         )}
 
         {view === "querying" && (
-          <div className="flex h-full flex-col items-center justify-center gap-3">
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-            <span className="text-sm text-zinc-500">{t("query.lookingUp")}</span>
+          <div className="flex h-full flex-col overflow-hidden p-4">
+            {queryingSingle ? (
+              <div className="space-y-3">
+                <div className="space-y-3 rounded-md border border-zinc-800 p-4">
+                  <div className="h-6 w-44 animate-pulse rounded bg-zinc-800" />
+                  <div className="h-3 w-24 animate-pulse rounded bg-zinc-800" />
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="h-3 animate-pulse rounded bg-zinc-800" />
+                    ))}
+                  </div>
+                </div>
+                <div className="h-20 animate-pulse rounded-md border border-zinc-800" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 border-b border-zinc-800/60 pb-3"
+                  >
+                    <div className="h-4 w-32 animate-pulse rounded bg-zinc-800" />
+                    <div className="h-4 w-12 animate-pulse rounded-full bg-zinc-800" />
+                    <div className="ml-auto h-3 w-16 animate-pulse rounded bg-zinc-800" />
+                  </div>
+                ))}
+              </div>
+            )}
+            <span className="pt-4 text-center text-xs text-zinc-500">{t("query.lookingUp")}</span>
           </div>
         )}
 

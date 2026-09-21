@@ -5,6 +5,7 @@ import type { LookupResult } from "../sources/ipradar";
 import type { AbuseSection } from "../sources/abuseipdb";
 import { VERDICT_STYLE, scoreTone } from "./badges";
 import { useI18n } from "../i18n";
+import { ArrowLeft } from "@phosphor-icons/react";
 
 function abuseOf(sec: SourceSection): AbuseSection | undefined {
   return sec.sourceId === "abuseipdb" && sec.status === "ok"
@@ -21,7 +22,7 @@ function errorText(code: number | undefined, message: string, retryAfter: number
 }
 
 function GridRow({ label, value }: { label: string; value: string | number | undefined | null }) {
-  const shown = value === undefined || value === null || value === "" ? "—" : String(value);
+  const shown = value === undefined || value === null || value === "" ? "-" : String(value);
   return (
     <div className="flex justify-between gap-2">
       <span className="text-zinc-500">{label}</span>
@@ -36,15 +37,15 @@ function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
   const city = d?.city?.value && d.city.value !== "N/A" ? d.city.value : undefined;
   const cityZh = d?.city_zh ?? undefined;
   return (
-    <div className="space-y-3 rounded-lg border border-zinc-800 p-4">
+    <div className="space-y-3 rounded-md border border-zinc-800 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-mono text-lg text-zinc-100">{ip}</h2>
         {d?.is_reserved ? (
-          <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE.reserved}`}>
+          <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE.reserved}`}>
             {t("verdict.reserved")}
           </span>
         ) : verdict ? (
-          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}>
             {t(`verdict.${verdict}`)}
             {(verdict === "malicious" || verdict === "suspicious") && (
               <span className="font-mono text-[10px] opacity-80">{d.threat!.confidence}</span>
@@ -55,7 +56,7 @@ function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
       {(d?.threat?.types?.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-1">
           {d!.threat!.types.map(type => (
-            <span key={type} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
+            <span key={type} className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
               {type}
             </span>
           ))}
@@ -83,7 +84,7 @@ function IpradarCard({ d }: { d: LookupResult }) {
     .sort((a, b) => b[1].confidence - a[1].confidence);
   if (entries.length === 0) return null;
   return (
-    <div className="rounded-lg border border-zinc-800 p-4">
+    <div className="rounded-md border border-zinc-800 p-4">
       <h3 className="mb-2 text-sm font-medium text-zinc-400">{t("src.ipradar")}</h3>
       <details>
         <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-300">
@@ -93,7 +94,7 @@ function IpradarCard({ d }: { d: LookupResult }) {
           {entries.map(([type, c]) => (
             <li key={type} className="flex items-center gap-2 text-xs">
               <span className="font-mono text-zinc-300">{type}</span>
-              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
                 {t(`verdict.${c.verdict}`)}
               </span>
               <span className="font-mono text-[10px] text-zinc-500">{c.confidence}</span>
@@ -113,14 +114,14 @@ function IpradarCard({ d }: { d: LookupResult }) {
 function AbuseCard({ a }: { a: AbuseSection }) {
   const { t } = useI18n();
   return (
-    <div className="space-y-2 rounded-lg border border-zinc-800 p-4">
+    <div className="space-y-2 rounded-md border border-zinc-800 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-zinc-400">{t("src.abuseipdb")}</h3>
         <span className="font-mono text-sm text-zinc-200">{a.score}/100</span>
       </div>
-      <div className="h-1.5 w-full rounded bg-zinc-800">
+      <div className="h-1.5 w-full rounded-full bg-zinc-800">
         <div
-          className={`h-1.5 rounded ${scoreTone(a.score)}`}
+          className={`h-1.5 rounded-full ${scoreTone(a.score)}`}
           style={{ width: `${Math.min(Math.max(a.score, 0), 100)}%` }}
         />
       </div>
@@ -167,9 +168,9 @@ export function ResultDetail({
       <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-2">
         <button
           onClick={onBack}
-          className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-500 transition active:scale-[0.97] hover:bg-zinc-800 hover:text-zinc-300"
         >
-          ← {backLabel}
+          <ArrowLeft size={12} weight="bold" /> {backLabel}
         </button>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -183,12 +184,12 @@ export function ResultDetail({
           if (sec.status === "needs-key") {
             if (!settings.showMissingKey) return null;
             return (
-              <div key={sec.sourceId} className="rounded-lg border border-zinc-800 p-4">
+              <div key={sec.sourceId} className="rounded-md border border-zinc-800 p-4">
                 <h3 className="text-sm font-medium text-zinc-400">{t(`src.${sec.sourceId}`)}</h3>
                 <p className="mt-1 text-xs text-zinc-500">{t("guidance.needsKey")}</p>
                 <button
                   onClick={onGoSettings}
-                  className="mt-2 rounded-md bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
+                  className="mt-2 rounded-md bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300 transition active:scale-[0.98] hover:bg-zinc-700"
                 >
                   {t("guidance.goSettings")}
                 </button>
@@ -197,7 +198,7 @@ export function ResultDetail({
           }
           if (sec.status === "error" && sec.error?.code !== "warming") {
             return (
-              <div key={sec.sourceId} className="rounded-lg border border-red-500/25 bg-red-500/5 p-4">
+              <div key={sec.sourceId} className="rounded-md border border-red-500/25 bg-red-500/5 p-4">
                 <h3 className="text-sm font-medium text-zinc-400">{t(`src.${sec.sourceId}`)}</h3>
                 <p className="mt-1 text-xs text-red-400">
                   {errorText(sec.error?.status, sec.error?.message ?? "", sec.error?.retryAfter, t)}
