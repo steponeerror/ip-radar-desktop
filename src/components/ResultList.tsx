@@ -2,7 +2,7 @@
 // 行徽章 = ipradar 源 fused verdict(唯一融合语义);源缺/禁用/错误 → "-"。
 import type { SourceSection } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
-import { VERDICT_STYLE } from "./badges";
+import { VERDICT_STYLE, TECH_LABEL } from "./badges";
 import { useI18n } from "../i18n";
 
 export function ipradarOf(sections: SourceSection[]): LookupResult | undefined {
@@ -28,6 +28,12 @@ export function ResultList({
   }
   return (
     <div className="overflow-y-auto">
+      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-800 bg-zinc-950 px-4 py-1.5">
+        <span className={`${TECH_LABEL} min-w-0 flex-1`}>IP</span>
+        <span className={TECH_LABEL}>{t("column.verdict")}</span>
+        <span className={`${TECH_LABEL} ml-auto max-w-24 truncate`}>{t("column.country")}</span>
+        <span className={`${TECH_LABEL} w-28 shrink-0 text-right`}>ASN</span>
+      </div>
       {ips.map(ip => {
         const d = ipradarOf(results.get(ip)!);
         const verdict = d?.threat?.verdict;
@@ -47,8 +53,8 @@ export function ResultList({
             ) : (
               <span className="text-[11px] text-zinc-700">-</span>
             )}
-            <span className="ml-auto truncate text-xs text-zinc-500">{d?.country?.value ?? "-"}</span>
-            <span className="w-28 shrink-0 truncate text-right text-xs text-zinc-500">
+            <span className="ml-auto truncate font-mono text-xs text-zinc-500">{d?.country?.value ?? "-"}</span>
+            <span className="w-28 shrink-0 truncate text-right font-mono text-xs text-zinc-500">
               {d?.as_name?.value ?? "-"}
             </span>
           </button>

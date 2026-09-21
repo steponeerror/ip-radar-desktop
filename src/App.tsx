@@ -9,6 +9,7 @@ import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { extractIps } from "./extractIps";
 import { getSources } from "./sources/registry";
 import { runSources } from "./sources/_scheduler";
+import { TECH_LABEL } from "./components/badges";
 import type { Settings, SourceSection } from "./sources/_types";
 import { DEFAULT_SETTINGS, loadSettings } from "./settings";
 import { I18nProvider, useI18n, type Pref } from "./i18n";
@@ -254,7 +255,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   return (
     <div className="flex h-screen w-full flex-col bg-zinc-950 text-zinc-200">
       <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-        <span className="text-sm font-medium text-zinc-300">{t("app.title")}</span>
+        <span className={TECH_LABEL}>{t("app.title")}</span>
         <button
           aria-label="settings"
           onClick={() => {
@@ -288,27 +289,34 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
 
       <main className="flex-1 overflow-hidden">
         {view === "input" && (
-          <div className="flex flex-col gap-2 p-4">
-            <input
-              ref={inputRef}
-              value={inputText}
-              onChange={e => {
-                setInputText(e.target.value);
-                setNoIpHint(false);
-              }}
-              onKeyDown={e => {
-                if (e.key === "Enter") submitInput();
-              }}
-              placeholder={t("query.placeholder")}
-              className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 transition-colors placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500/30"
-            />
-            <button
-              onClick={submitInput}
-              className="self-end rounded-md bg-zinc-100 px-3.5 py-1.5 text-xs font-medium text-zinc-950 transition active:scale-[0.98] hover:bg-white"
-            >
-              {t("query.go")}
-            </button>
-            {noIpHint && <p className="text-xs text-zinc-500">{t("query.noIp")}</p>}
+          <div className="p-4">
+            <div className="border border-zinc-800">
+              <div className="border-b border-zinc-800 px-3 py-1.5">
+                <span className={TECH_LABEL}>{t("query.sectionLabel")}</span>
+              </div>
+              <div className="space-y-2 p-3">
+                <input
+                  ref={inputRef}
+                  value={inputText}
+                  onChange={e => {
+                    setInputText(e.target.value);
+                    setNoIpHint(false);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") submitInput();
+                  }}
+                  placeholder={t("query.placeholder")}
+                  className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-200 transition-colors placeholder:font-sans placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500/30"
+                />
+                <button
+                  onClick={submitInput}
+                  className="self-end rounded-md bg-zinc-100 px-3.5 py-1.5 text-xs font-medium text-zinc-950 transition active:scale-[0.98] hover:bg-white"
+                >
+                  {t("query.go")}
+                </button>
+              </div>
+            </div>
+            {noIpHint && <p className="mt-2 text-xs text-zinc-500">{t("query.noIp")}</p>}
           </div>
         )}
 
@@ -316,16 +324,18 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
           <div className="flex h-full flex-col overflow-hidden p-4">
             {queryingSingle ? (
               <div className="space-y-3">
-                <div className="space-y-3 rounded-md border border-zinc-800 p-4">
-                  <div className="h-6 w-44 animate-pulse rounded bg-zinc-800" />
-                  <div className="h-3 w-24 animate-pulse rounded bg-zinc-800" />
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <div className="border border-zinc-800">
+                  <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
+                    <div className="h-5 w-44 animate-pulse bg-zinc-800" />
+                    <div className="h-4 w-14 animate-pulse bg-zinc-800" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-px bg-zinc-800">
                     {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="h-3 animate-pulse rounded bg-zinc-800" />
+                      <div key={i} className="h-8 animate-pulse bg-zinc-950" />
                     ))}
                   </div>
                 </div>
-                <div className="h-20 animate-pulse rounded-md border border-zinc-800" />
+                <div className="h-16 animate-pulse border border-zinc-800" />
               </div>
             ) : (
               <div className="space-y-3">
@@ -334,9 +344,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                     key={i}
                     className="flex items-center gap-3 border-b border-zinc-800/60 pb-3"
                   >
-                    <div className="h-4 w-32 animate-pulse rounded bg-zinc-800" />
-                    <div className="h-4 w-12 animate-pulse rounded-full bg-zinc-800" />
-                    <div className="ml-auto h-3 w-16 animate-pulse rounded bg-zinc-800" />
+                    <div className="h-4 w-32 animate-pulse bg-zinc-800" />
+                    <div className="h-4 w-12 animate-pulse bg-zinc-800" />
+                    <div className="ml-auto h-3 w-16 animate-pulse bg-zinc-800" />
                   </div>
                 ))}
               </div>
