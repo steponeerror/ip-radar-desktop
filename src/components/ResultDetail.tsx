@@ -94,7 +94,7 @@ function IpradarCard({ d }: { d: LookupResult }) {
             <li key={type} className="flex items-center gap-2 text-xs">
               <span className="font-mono text-zinc-300">{type}</span>
               <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
-                {c.verdict}
+                {t(`verdict.${c.verdict}`)}
               </span>
               <span className="font-mono text-[10px] text-zinc-500">{c.confidence}</span>
               {c.malware_names.length > 0 && (
@@ -125,13 +125,13 @@ function AbuseCard({ a }: { a: AbuseSection }) {
         />
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        <GridRow label="Country" value={a.countryCode} />
-        <GridRow label="ISP" value={a.isp} />
-        <GridRow label="Usage" value={a.usageType} />
-        <GridRow label="Tor" value={a.isTor ? "true" : undefined} />
-        <GridRow label="Reports" value={a.totalReports} />
-        <GridRow label="Reporters" value={a.numDistinctUsers} />
-        <GridRow label="Last" value={a.lastReportedAt?.slice(0, 10)} />
+        <GridRow label={t("abuse.country")} value={a.countryCode} />
+        <GridRow label={t("abuse.isp")} value={a.isp} />
+        <GridRow label={t("abuse.usage")} value={a.usageType} />
+        <GridRow label={t("abuse.tor")} value={a.isTor ? "true" : undefined} />
+        <GridRow label={t("abuse.reports")} value={a.totalReports} />
+        <GridRow label={t("abuse.reporters")} value={a.numDistinctUsers} />
+        <GridRow label={t("abuse.last")} value={a.lastReportedAt?.slice(0, 10)} />
       </div>
       {a.recentComments.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-4 text-xs text-zinc-500">

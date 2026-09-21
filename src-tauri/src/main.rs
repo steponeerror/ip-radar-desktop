@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
@@ -9,6 +10,10 @@ use tauri::{
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const DEFAULT_HOTKEY: &str = "CmdOrCtrl+Alt+I";
+
+/// 当前已注册的快捷键(I3 回滚语义的真相源):
+/// set_hotkey 先注册新键,成功后才注销旧键 —— 新键失败时旧键原样存活。
+struct HotkeyState(Mutex<Option<String>>);
 
 /// Show + focus the main window. Hotkey, tray and second-instance all land here.
 fn show(app: &tauri::AppHandle) {
@@ -27,11 +32,30 @@ fn hide_window(app: tauri::AppHandle) {
 
 /// Swap the global hotkey registration. Persistence is the frontend's job
 /// (settings are saved before invoking this); Rust only re-registers.
+/// Rollback contract (I3): register(new) FIRST — on failure the OLD key stays
+/// live and we return Err; only after success do we unregister the old one.
 #[tauri::command]
-fn set_hotkey(app: tauri::AppHandle, accel: String) -> Result<(), String> {
+fn set_hotkey(
+    app: tauri::AppHandle,
+    state: tauri::State<HotkeyState>,
+    accel: String,
+) -> Result<(), String> {
     let gs = app.global_shortcut();
-    gs.unregister_all().map_err(|e| e.to_string())?;
-    gs.register(accel.as_str()).map_err(|e| e.to_string())
+    let mut cur = state.0.lock().map_err(|e| e.to_string())?;
+    if cur.as_deref() == Some(accel.as_str()) {
+        return Ok(()); // 同值幂等
+    }
+    gs.register(accel.as_str()).map_err(|e| e.to_string())?; // 失败:旧键未动
+    if let Some(old) = cur.take() {
+        if old != accel {
+            // 新键已生效;旧键注销失败仅残留(非致命,下次换键时 unregister_all 不会发生)
+            if let Err(e) = gs.unregister(old.as_str()) {
+                eprintln!("old hotkey {old:?} unregister failed: {e}");
+            }
+        }
+    }
+    *cur = Some(accel);
+    Ok(())
 }
 
 #[tauri::command]
@@ -63,6 +87,7 @@ fn stored_hotkey(app: &tauri::AppHandle) -> String {
 
 fn main() {
     tauri::Builder::default()
+        .manage(HotkeyState(Mutex::new(None)))
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| show(app)))
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -114,11 +139,18 @@ fn main() {
             // register() (no per-shortcut handler) → builder's with_handler
             // fires exactly once; on_shortcut(+handler) would double-fire it.
             let accel = stored_hotkey(app.handle());
-            if let Err(e) = app.global_shortcut().register(accel.as_str()) {
-                eprintln!("hotkey {accel:?} invalid ({e}); falling back to {DEFAULT_HOTKEY:?}");
-                app.global_shortcut()
-                    .register(DEFAULT_HOTKEY)
-                    .expect("default hotkey registration");
+            let registered =
+                if let Err(e) = app.global_shortcut().register(accel.as_str()) {
+                    eprintln!("hotkey {accel:?} invalid ({e}); falling back to {DEFAULT_HOTKEY:?}");
+                    app.global_shortcut()
+                        .register(DEFAULT_HOTKEY)
+                        .expect("default hotkey registration");
+                    DEFAULT_HOTKEY.to_string()
+                } else {
+                    accel
+                };
+            if let Ok(mut cur) = app.state::<HotkeyState>().0.lock() {
+                *cur = Some(registered);
             }
 
             // ── Blur → hide (window hides, process stays tray-resident) ──

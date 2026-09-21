@@ -58,4 +58,33 @@ describe("runSources 调度器", () => {
     expect(called).toEqual([]);
     expect(out.get("1.1.1.1")).toEqual([]);
   });
+
+  test("C1:query 源 transport 抛错 → 每 IP 得 error 段,runSources 正常 resolve", async () => {
+    const src: QuerySource = {
+      id: "x", label: "X",
+      query: async () => { throw new Error("connect ECONNREFUSED 127.0.0.1:8000"); },
+    };
+    const out = await runSources(["1.1.1.1", "2.2.2.2"], [src], S);
+    expect(out.get("1.1.1.1")).toEqual([
+      { sourceId: "x", status: "error", error: { message: "connect ECONNREFUSED 127.0.0.1:8000" } },
+    ]);
+    expect(out.get("2.2.2.2")!.length).toBe(1);
+    expect(out.get("2.2.2.2")![0].status).toBe("error");
+  });
+
+  test("C1:queryMany 中途抛错 → 已产出保留,未产出 IP 补 error 段,无 unhandled rejection", async () => {
+    const ok = section("m", "row-1");
+    const src: QuerySource = {
+      id: "m", label: "M",
+      query: async () => { throw new Error("unreachable"); },
+      async *queryMany() {
+        yield { ip: "1.1.1.1", section: ok };
+        throw new Error("mid-stream boom");
+      },
+    };
+    const out = await runSources(["1.1.1.1", "2.2.2.2", "3.3.3.3"], [src], S);
+    expect(out.get("1.1.1.1")).toEqual([ok]);
+    expect(out.get("2.2.2.2")![0].error?.message).toBe("mid-stream boom");
+    expect(out.get("3.3.3.3")![0].error?.message).toBe("mid-stream boom");
+  });
 });

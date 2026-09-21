@@ -54,13 +54,14 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
     }
     setUrlInvalid(false);
     setApplyHint(null);
-    // maxIps:1..1000 clamp(空/NaN 回退 100)
+    // maxIps:1..1000 clamp(空/NaN 回退 100);clamp 后回写输入框(R3),避免 1000→100 显示错位
     const n = Math.round(Number(maxIpsRaw));
     const next: Settings = {
       ...form,
       serverUrl: url,
       maxIps: Math.min(1000, Math.max(1, Number.isFinite(n) && n > 0 ? n : 100)),
     };
+    setMaxIpsRaw(String(next.maxIps));
     await saveSettings(next);
     onSaved(next);
     // 热应用:仅变更项触发;失败非致命(命令 Task 9 落地,浏览器 dev 下会走到 catch)
@@ -106,7 +107,10 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
           <input
             id="serverUrl"
             value={form.serverUrl}
-            onChange={e => setForm(f => ({ ...f, serverUrl: e.target.value }))}
+            onChange={e => {
+              setForm(f => ({ ...f, serverUrl: e.target.value }));
+              if (urlInvalid) setUrlInvalid(false);   // 重新编辑即清除错误提示(R3)
+            }}
             placeholder="http://127.0.0.1:8000"
             className={`${INPUT_CLS}${urlInvalid ? " border-red-500/50" : ""}`}
           />

@@ -21,7 +21,7 @@
 | 平台 | 包 | 首次运行 |
 |---|---|---|
 | Linux | `.deb` / `.AppImage` | 直接安装/运行 |
-| macOS | `.dmg` | 未签名,首次运行需执行:`xattr -cr com.ipradar.desktop /Applications/*.app`(或右键 → 打开) |
+| macOS | `.dmg` | 未签名,首次运行需执行:`xattr -cr "/Applications/IP Radar Desktop.app"`(或右键 → 打开) |
 | Windows | `.msi` / `.exe` | 未签名,SmartScreen 弹窗时点「更多信息 → 仍要运行」 |
 
 ### 配置
@@ -64,7 +64,7 @@ Grab the package for your platform from [Releases](../../releases):
 | Platform | Package | First run |
 |---|---|---|
 | Linux | `.deb` / `.AppImage` | install / run directly |
-| macOS | `.dmg` | unsigned — first run: `xattr -cr com.ipradar.desktop /Applications/*.app` (or right-click → Open) |
+| macOS | `.dmg` | unsigned — first run: `xattr -cr "/Applications/IP Radar Desktop.app"` (or right-click → Open) |
 | Windows | `.msi` / `.exe` | unsigned — on the SmartScreen prompt choose "More info → Run anyway" |
 
 ### Configuration

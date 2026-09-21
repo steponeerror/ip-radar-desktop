@@ -1,8 +1,11 @@
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, afterEach } from "vitest";
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
 import { fetch as tf } from "@tauri-apps/plugin-http";
 import { abuseipdbSource, type AbuseSection } from "../sources/abuseipdb";
 import { DEFAULT_SETTINGS } from "../settings";
+
+// 429 退避测试用 fake timers;断言中途失败也归还真实计时器(R1)
+afterEach(() => vi.useRealTimers());
 
 const S = { ...DEFAULT_SETTINGS, abuseipdbKey: "ak" };
 

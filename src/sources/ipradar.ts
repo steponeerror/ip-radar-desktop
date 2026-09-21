@@ -41,32 +41,64 @@ export const ipradarSource: QuerySource = {
   },
   async *queryMany(ips, s) {
     const base = s.serverUrl.replace(/\/+$/, "");
-    const r = await tf(`${base}/api/query/stream`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders(s) },
-      body: JSON.stringify({ ips }),
-      signal: AbortSignal.timeout(15_000),
-    });
+    // 连接/响应头阶段 15s 超时;到达即停 —— AbortSignal 若挂到 body 读取期,
+    // 15s 定时器照样会把慢流拦腰斩断(I2),故用一次性手动控制器
+    const connectCtl = new AbortController();
+    const connectTimer = setTimeout(() => connectCtl.abort(), 15_000);
+    let r: Response;
+    try {
+      r = await tf(`${base}/api/query/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(s) },
+        body: JSON.stringify({ ips }),
+        signal: connectCtl.signal,
+      });
+    } finally {
+      clearTimeout(connectTimer);
+    }
     if (!r.ok) { yield* singleErr(await parseErr(r), ips); return; }
     const reader = r.body!.getReader();
     const dec = new TextDecoder();
     let buf = "";
     let sawDone = false;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop()!;
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const evt = JSON.parse(line);
-        if (evt.type === "row") {
-          yield { ip: evt.result.ip, section: { sourceId: "ipradar", status: "ok", data: evt.result } };
-        } else if (evt.type === "done") {
-          sawDone = true;
+    // 每读一块 15s 空闲看门狗(块间重置);超时 cancel reader 后抛 —— 100 IP 慢流
+    // 只要还在吐数据就不算超时(idle 语义,对齐 server 前端 120s idle 的精神)
+    const readWithIdle = (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+      const readP = reader.read();
+      readP.catch(() => {}); // race 已定后迟到的拒绝不外溢为 unhandled
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const idleP = new Promise<never>((_, rej) => {
+        timer = setTimeout(() => rej(new Error("idle timeout (15s without stream data)")), 15_000);
+      });
+      return Promise.race([readP, idleP]).finally(() => clearTimeout(timer));
+    };
+    // done.invalid_lines 回填在末段(R5):scheduler 按引用入 map,
+    // done 事件必然晚于全部 row 事件,消费完成后 UI 才渲染 —— 事后补字段安全
+    let lastSection: SourceSection | null = null;
+    try {
+      while (true) {
+        const { done, value } = await readWithIdle();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop()!;
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const evt = JSON.parse(line);
+          if (evt.type === "row") {
+            lastSection = { sourceId: "ipradar", status: "ok", data: evt.result };
+            yield { ip: evt.result.ip, section: lastSection };
+          } else if (evt.type === "done") {
+            sawDone = true;
+            if ((evt.invalid_lines ?? 0) > 0 && lastSection) {
+              lastSection.invalidLines = evt.invalid_lines as number;
+            }
+          }
         }
       }
+    } catch (e) {
+      await reader.cancel().catch(() => {});
+      throw e;
     }
     if (!sawDone) throw new Error("stream ended before done");
   },

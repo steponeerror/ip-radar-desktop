@@ -5,6 +5,13 @@ type Lang = "zh" | "en";
 export type Pref = "auto" | "zh" | "en";
 
 const zh: Record<string, string> = {
+  "abuse.country": "国家",
+  "abuse.isp": "ISP",
+  "abuse.last": "最近报告",
+  "abuse.reporters": "报告者",
+  "abuse.reports": "报告数",
+  "abuse.tor": "Tor 节点",
+  "abuse.usage": "用途",
   "app.title": "IP Radar",
   "common.back": "返回",
   "column.city": "城市",
@@ -45,6 +52,7 @@ const zh: Record<string, string> = {
   "verdict.reserved": "保留",
   "src.ipradar": "IP Radar",
   "src.abuseipdb": "AbuseIPDB",
+  "src.system": "系统",
   "err.401": "未授权：需要有效的 IP Radar API key",
   "err.403": "key 已被吊销或禁用",
   "err.429": "请求过频，{seconds} 秒后重试",
@@ -52,6 +60,13 @@ const zh: Record<string, string> = {
 };
 
 const en: Record<string, string> = {
+  "abuse.country": "Country",
+  "abuse.isp": "ISP",
+  "abuse.last": "Last report",
+  "abuse.reporters": "Reporters",
+  "abuse.reports": "Reports",
+  "abuse.tor": "Tor node",
+  "abuse.usage": "Usage",
   "app.title": "IP Radar",
   "common.back": "Back",
   "column.city": "City",
@@ -92,6 +107,7 @@ const en: Record<string, string> = {
   "verdict.reserved": "Reserved",
   "src.ipradar": "IP Radar",
   "src.abuseipdb": "AbuseIPDB",
+  "src.system": "System",
   "err.401": "Unauthorized: a valid IP Radar API key is required",
   "err.403": "Key revoked or disabled",
   "err.429": "Rate limited, retry in {seconds}s",

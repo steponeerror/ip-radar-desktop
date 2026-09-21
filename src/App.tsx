@@ -35,6 +35,16 @@ function anyWarming(results: Map<string, SourceSection[]>): boolean {
   return false;
 }
 
+/** 服务端上报的无效行数(R5):任一 ipradar 段携带即取(同一流同一值)。 */
+function invalidLinesOf(results: Map<string, SourceSection[]>): number {
+  for (const sections of results.values()) {
+    for (const s of sections) {
+      if ((s.invalidLines ?? 0) > 0) return s.invalidLines!;
+    }
+  }
+  return 0;
+}
+
 /** 无 key 引导卡:list 与 detail 两个视图共用(401 首启路径也能看到)。 */
 function GuidanceCard({ serverUrl, onGoSettings }: { serverUrl: string; onGoSettings: () => void }) {
   const { t } = useI18n();
@@ -114,7 +124,19 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       lastTruncRef.current = trunc;
       setTruncated(trunc ?? null);
       setView("querying");
-      const map = await runSources(ips, getSources(), settingsRef.current);
+      // 纵深防御(C1):调度器已把单源异常转 error section,这里兑底任何漏网异常,
+      // 保证绝不永久停在 querying 视图
+      let map: Map<string, SourceSection[]>;
+      try {
+        map = await runSources(ips, getSources(), settingsRef.current);
+      } catch (e) {
+        if (epoch !== queryEpochRef.current) return;
+        const msg = String((e as Error)?.message ?? e);
+        map = new Map(ips.map(ip => [
+          ip,
+          [{ sourceId: "system", status: "error", error: { message: msg } }],
+        ]));
+      }
       if (epoch !== queryEpochRef.current) return;   // 被更新查询取代:丢弃陈旧结果
       setResults(map);
       setNoIpHint(false);
@@ -224,6 +246,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
 
   const guidance = needsKeyGuidance(results) && (view === "list" || view === "detail");
   const detailSections = selectedIp ? (results.get(selectedIp) ?? []) : [];
+  const invalidLines = invalidLinesOf(results);
 
   return (
     <div className="flex h-screen w-full flex-col bg-zinc-950 text-zinc-200">
@@ -252,6 +275,11 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       {truncated && (view === "querying" || view === "list" || view === "detail") && (
         <div className="border-b border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-400">
           {t("query.truncated", truncated)}
+        </div>
+      )}
+      {invalidLines > 0 && (view === "querying" || view === "list" || view === "detail") && (
+        <div className="border-b border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-400">
+          {t("query.invalidLines", { n: invalidLines })}
         </div>
       )}
 
