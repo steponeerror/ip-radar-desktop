@@ -1,0 +1,115 @@
+import { createContext, useContext, type ReactNode } from "react";
+
+// 中英 dict,照 server 前端 useI18n 模式:扁平 key + {var} 插值,缺 key 回退 en 再回 key 本身。
+type Lang = "zh" | "en";
+type Pref = "auto" | "zh" | "en";
+
+const zh: Record<string, string> = {
+  "app.title": "IP Radar",
+  "query.placeholder": "输入或粘贴 IP…",
+  "query.go": "查询",
+  "query.truncated": "共 {total} 个，已查前 {max}",
+  "query.invalidLines": "{n} 个无效输入被跳过",
+  "guidance.noKey": "未配置 IP Radar API key",
+  "guidance.goSettings": "去设置",
+  "guidance.adminHint": "浏览器打开 {url}/admin → API Keys → 签发后粘贴",
+  "settings.serverUrl": "Server 地址",
+  "settings.ipradarKey": "IP Radar API key",
+  "settings.abuseipdbKey": "AbuseIPDB API key",
+  "settings.maxIps": "单次最大查询数",
+  "settings.hotkey": "全局快捷键",
+  "settings.language": "语言",
+  "settings.sourceToggles": "查询源",
+  "settings.showMissingKey": "结果区显示缺 key 源占位卡",
+  "settings.autostart": "开机自启动",
+  "settings.save": "保存",
+  "verdict.malicious": "恶意",
+  "verdict.suspicious": "可疑",
+  "verdict.benign": "良性",
+  "verdict.informational": "信息",
+  "verdict.reserved": "保留",
+  "src.ipradar": "IP Radar",
+  "src.abuseipdb": "AbuseIPDB",
+  "err.401": "未授权：需要有效的 IP Radar API key",
+  "err.403": "key 已被吊销或禁用",
+  "err.429": "请求过频，{seconds} 秒后重试",
+  "err.timeout": "请求超时",
+};
+
+const en: Record<string, string> = {
+  "app.title": "IP Radar",
+  "query.placeholder": "Paste or type an IP…",
+  "query.go": "Look up",
+  "query.truncated": "{total} found, queried first {max}",
+  "query.invalidLines": "{n} invalid lines skipped",
+  "guidance.noKey": "No IP Radar API key configured",
+  "guidance.goSettings": "Open settings",
+  "guidance.adminHint": "Open {url}/admin in a browser → API Keys → issue and paste",
+  "settings.serverUrl": "Server URL",
+  "settings.ipradarKey": "IP Radar API key",
+  "settings.abuseipdbKey": "AbuseIPDB API key",
+  "settings.maxIps": "Max IPs per query",
+  "settings.hotkey": "Global hotkey",
+  "settings.language": "Language",
+  "settings.sourceToggles": "Sources",
+  "settings.showMissingKey": "Show placeholder for keyless sources",
+  "settings.autostart": "Launch at login",
+  "settings.save": "Save",
+  "verdict.malicious": "Malicious",
+  "verdict.suspicious": "Suspicious",
+  "verdict.benign": "Benign",
+  "verdict.informational": "Informational",
+  "verdict.reserved": "Reserved",
+  "src.ipradar": "IP Radar",
+  "src.abuseipdb": "AbuseIPDB",
+  "err.401": "Unauthorized: a valid IP Radar API key is required",
+  "err.403": "Key revoked or disabled",
+  "err.429": "Rate limited, retry in {seconds}s",
+  "err.timeout": "Request timed out",
+};
+
+const DICTS: Record<Lang, Record<string, string>> = { zh, en };
+
+export function resolveLang(pref: Pref): Lang {
+  if (pref === "auto") return navigator.language.startsWith("zh") ? "zh" : "en";
+  return pref;
+}
+
+interface I18nCtx {
+  lang: Lang;
+  pref: Pref;
+  setPref: (p: Pref) => void;
+}
+
+const I18nContext = createContext<I18nCtx>({
+  lang: "en",
+  pref: "auto",
+  setPref: () => {},
+});
+
+export function I18nProvider({ preference, setPreference, children }: {
+  preference: Pref;
+  setPreference: (p: Pref) => void;
+  children: ReactNode;
+}) {
+  const lang = resolveLang(preference);
+  return (
+    <I18nContext.Provider value={{ lang, pref: preference, setPref: setPreference }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+export function useI18n(): { t(key: string, vars?: Record<string, string | number>): string; lang: Lang } {
+  const { lang } = useContext(I18nContext);
+  return {
+    lang,
+    t(key, vars) {
+      let s = DICTS[lang][key] ?? DICTS.en[key] ?? key;
+      if (vars) {
+        for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
+      }
+      return s;
+    },
+  };
+}
