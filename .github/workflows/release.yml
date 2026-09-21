@@ -31,3 +31,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "IP Radar Desktop ${{ github.ref_name }}"
           releaseDraft: true
+      - name: Attach portable exe (windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          exe=$(ls src-tauri/target/release/*.exe | head -1)
+          cp "$exe" "IP.Radar.Desktop_${{ github.ref_name }}_portable_x64.exe"
+          gh release upload "${{ github.ref_name }}" "IP.Radar.Desktop_${{ github.ref_name }}_portable_x64.exe" --clobber
