@@ -25,6 +25,11 @@ fn show(app: &tauri::AppHandle) {
 
 #[tauri::command]
 fn hide_window(app: tauri::AppHandle) {
+    // dev(含 WSLg 无托盘/无全局热键环境):隐藏后无入口唤回,直接 no-op;
+    // release 行为不变(Esc/失焦隐藏,托盘常驻)。
+    if cfg!(debug_assertions) {
+        return;
+    }
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.hide();
     }
@@ -154,15 +159,23 @@ fn main() {
             }
 
             // ── Blur → hide (window hides, process stays tray-resident) ──
-            let win = app
-                .get_webview_window("main")
-                .expect("main window missing");
-            let win_clone = win.clone();
-            win.on_window_event(move |e| {
-                if let tauri::WindowEvent::Focused(false) = e {
-                    let _ = win_clone.hide();
-                }
-            });
+            // dev(WSLg)跳过:无托盘环境失焦即永久唤不回;release 正常注册。
+            if !cfg!(debug_assertions) {
+                let win = app
+                    .get_webview_window("main")
+                    .expect("main window missing");
+                let win_clone = win.clone();
+                win.on_window_event(move |e| {
+                    if let tauri::WindowEvent::Focused(false) = e {
+                        let _ = win_clone.hide();
+                    }
+                });
+            }
+
+            // ── dev 逃生门:启动即显示(WSLg/无托盘环境的唯一入口)──
+            if cfg!(debug_assertions) {
+                show(app.handle());
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
