@@ -2,18 +2,28 @@ import { createContext, useContext, type ReactNode } from "react";
 
 // 中英 dict,照 server 前端 useI18n 模式:扁平 key + {var} 插值,缺 key 回退 en 再回 key 本身。
 type Lang = "zh" | "en";
-type Pref = "auto" | "zh" | "en";
+export type Pref = "auto" | "zh" | "en";
 
 const zh: Record<string, string> = {
   "app.title": "IP Radar",
-  "query.placeholder": "输入或粘贴 IP…",
+  "common.back": "返回",
+  "column.city": "城市",
+  "column.operator": "运营商",
+  "ipDetail.range": "网段",
   "query.go": "查询",
+  "query.placeholder": "输入或粘贴 IP…",
+  "query.lookingUp": "查询中…",
+  "query.noIp": "未识别到有效 IP",
+  "settings.serverUrl": "Server 地址",
   "query.truncated": "共 {total} 个，已查前 {max}",
+  "query.backToList": "结果列表",
   "query.invalidLines": "{n} 个无效输入被跳过",
+  "query.warming": "预热中，就绪后自动重查…",
   "guidance.noKey": "未配置 IP Radar API key",
+  "guidance.needsKey": "未配置 API key",
   "guidance.goSettings": "去设置",
   "guidance.adminHint": "浏览器打开 {url}/admin → API Keys → 签发后粘贴",
-  "settings.serverUrl": "Server 地址",
+  "query.noResults": "无结果",
   "settings.ipradarKey": "IP Radar API key",
   "settings.abuseipdbKey": "AbuseIPDB API key",
   "settings.maxIps": "单次最大查询数",
@@ -38,14 +48,24 @@ const zh: Record<string, string> = {
 
 const en: Record<string, string> = {
   "app.title": "IP Radar",
-  "query.placeholder": "Paste or type an IP…",
+  "common.back": "Back",
+  "column.city": "City",
+  "column.operator": "Operator",
+  "ipDetail.range": "Range",
   "query.go": "Look up",
+  "query.placeholder": "Paste or type an IP…",
+  "query.lookingUp": "Looking up…",
+  "query.noIp": "No valid IP found",
+  "settings.serverUrl": "Server URL",
   "query.truncated": "{total} found, queried first {max}",
+  "query.backToList": "Results",
   "query.invalidLines": "{n} invalid lines skipped",
+  "query.warming": "Warming up, will re-query when ready…",
   "guidance.noKey": "No IP Radar API key configured",
+  "guidance.needsKey": "No API key configured",
   "guidance.goSettings": "Open settings",
   "guidance.adminHint": "Open {url}/admin in a browser → API Keys → issue and paste",
-  "settings.serverUrl": "Server URL",
+  "query.noResults": "No results",
   "settings.ipradarKey": "IP Radar API key",
   "settings.abuseipdbKey": "AbuseIPDB API key",
   "settings.maxIps": "Max IPs per query",

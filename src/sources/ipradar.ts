@@ -11,6 +11,7 @@ export interface LookupResult {
   country?: { value: string }; city?: { value: string }; city_zh?: string | null;
   asn?: { value: number | string }; as_name?: { value: string }; ip_range?: { value: string };
   threat?: { verdict: string; confidence: number; types: string[]; is_cdn: boolean };
+  location?: { lat: number; lon: number; accuracy_radius?: number } | null;
   classifications?: Record<string, { verdict: string; detected: boolean; confidence: number; malware_names: string[] }>;
 }
 
