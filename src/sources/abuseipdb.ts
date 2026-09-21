@@ -65,3 +65,5 @@ export const abuseipdbSource: QuerySource = {
     };
   },
 };
+
+export default abuseipdbSource;

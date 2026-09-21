@@ -8,7 +8,7 @@ import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { extractIps } from "./extractIps";
 import { getSources } from "./sources/registry";
-import { runSources } from "./sources/scheduler";
+import { runSources } from "./sources/_scheduler";
 import type { Settings, SourceSection } from "./sources/_types";
 import { DEFAULT_SETTINGS, loadSettings } from "./settings";
 import { I18nProvider, useI18n, type Pref } from "./i18n";

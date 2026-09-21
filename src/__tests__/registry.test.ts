@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { collectSources } from "../sources/registry";
+import { collectSources, getSources } from "../sources/registry";
 
 describe("registry 契约", () => {
   test("好源通过", () => {
@@ -15,5 +15,11 @@ describe("registry 契约", () => {
   });
   test("_ 前缀文件跳过", () => {
     expect(collectSources({ "./_types.ts": { default: {} } })).toHaveLength(0);
+  });
+  // 真实 glob 回归(Windows 白屏根因):sources/ 下所有非 _ 前缀模块必须是合法源,
+  // 否则 getSources() 在 render 期 throw = 白屏。基础设施模块必须 _ 前缀。
+  test("真实 glob:getSources 不 throw 且只返回合法源", () => {
+    const sources = getSources();
+    expect(sources.map(s => s.id)).toEqual(["abuseipdb", "ipradar"]);
   });
 });

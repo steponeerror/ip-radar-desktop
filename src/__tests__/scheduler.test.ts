@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { runSources } from "../sources/scheduler";
+import { runSources } from "../sources/_scheduler";
 import type { QuerySource, SourceSection } from "../sources/_types";
 import { DEFAULT_SETTINGS } from "../settings";
 

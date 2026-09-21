@@ -107,3 +107,5 @@ export const ipradarSource: QuerySource = {
 async function* singleErr(sec: SourceSection, ips: string[]) {
   for (const ip of ips) yield { ip, section: sec };
 }
+
+export default ipradarSource;
