@@ -42,7 +42,7 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - run: npm run tauri build -- --no-bundles
+      - run: npm run tauri build -- --no-bundle
       - name: Attach portable exe
         shell: bash
         env:
