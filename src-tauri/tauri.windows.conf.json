@@ -3,8 +3,17 @@
     "windows": [
       {
         "label": "main",
+        "title": "IP Radar Desktop",
+        "width": 780,
+        "height": 500,
+        "minWidth": 640,
+        "minHeight": 400,
+        "decorations": false,
         "transparent": false,
-        "shadow": true
+        "shadow": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": true
       }
     ]
   }

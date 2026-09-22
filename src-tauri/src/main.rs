@@ -90,6 +90,27 @@ fn stored_hotkey(app: &tauri::AppHandle) -> String {
         .unwrap_or_else(|| DEFAULT_HOTKEY.to_string())
 }
 
+/// Windows:焦点是否已真正离开本窗口树。WebView2 是子 HWND,点击内容会把
+/// Win32 焦点转给子窗口 → 父窗口 WM_KILLFOCUS → tao 发 Focused(false) ——
+/// 这是窗口内部的焦点转移,不是失活,不能触发失焦隐藏(v0.1.3 Windows
+/// “一点击就缩回去”的根因)。GetFocus 返回当前线程焦点窗口,取它的 GA_ROOT
+/// 与本窗口 HWND 比对:还在树内 = 未失焦。
+#[cfg(target_os = "windows")]
+fn focus_left_window(w: &tauri::WebviewWindow) -> bool {
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetFocus;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetAncestor, GA_ROOT};
+    let Ok(h) = w.hwnd() else { return true };
+    let mine = h.0 as isize as HWND;
+    unsafe {
+        let focused = GetFocus();
+        if focused.is_null() {
+            return true; // 焦点已在本线程之外 → 真失焦
+        }
+        GetAncestor(focused, GA_ROOT) != mine
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(HotkeyState(Mutex::new(None)))
@@ -200,6 +221,10 @@ fn main() {
                 let win_clone = win.clone();
                 win.on_window_event(move |e| {
                     if let tauri::WindowEvent::Focused(false) = e {
+                        #[cfg(target_os = "windows")]
+                        if !focus_left_window(&win_clone) {
+                            return;
+                        }
                         let _ = win_clone.hide();
                     }
                 });
@@ -213,4 +238,61 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::Value;
+
+    /// RC1 回归钉(v0.1.3 Windows 全灭):平台覆盖的 windows 数组会被
+    /// RFC7396 merge-patch 【整体替换】,覆盖条目必须携带主配置窗口的全量字段,
+    /// 否则丢失字段全部回退默认值(decorated:true / visible:true / 800×600 /
+    /// 任务栏可见)。此测试钉住覆盖完整性。
+    #[test]
+    fn windows_overlay_must_cover_base_window_config() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let base: Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.join("tauri.conf.json")).unwrap(),
+        )
+        .unwrap();
+        let overlay: Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.join("tauri.windows.conf.json")).unwrap(),
+        )
+        .unwrap();
+        let base_win = base["app"]["windows"][0]
+            .as_object()
+            .expect("base window object");
+        let ov_win = overlay["app"]["windows"][0]
+            .as_object()
+            .expect("overlay window object");
+        // 键集合一致(transparent/shadow 是仅允许的平台差异键)
+        assert_eq!(
+            base_win.len(),
+            ov_win.len(),
+            "覆盖与主配置窗口字段数不一致(仅允许 transparent/shadow 取值差异)"
+        );
+        for (k, v) in base_win {
+            if k == "transparent" || k == "shadow" {
+                continue;
+            }
+            assert_eq!(
+                ov_win.get(k),
+                Some(v),
+                "tauri.windows.conf.json 缺字段 {k}:RFC7396 数组整体替换会把它顶成默认值"
+            );
+        }
+        assert_eq!(ov_win.get("transparent"), Some(&Value::Bool(false)));
+        assert_eq!(ov_win.get("shadow"), Some(&Value::Bool(true)));
+        // 全链路:codegen 同款 read_from(Target::Windows) 证实合并结果就是覆盖数组
+        let (merged, paths) = tauri_utils::config::parse::read_from(
+            tauri_utils::platform::Target::Windows,
+            dir,
+        )
+        .unwrap();
+        assert!(
+            paths.iter().any(|p| p.ends_with("tauri.windows.conf.json")),
+            "平台覆盖文件未被 tauri 解析器发现"
+        );
+        assert_eq!(merged["app"]["windows"][0], overlay["app"]["windows"][0]);
+    }
 }
