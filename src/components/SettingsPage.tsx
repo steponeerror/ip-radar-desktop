@@ -112,7 +112,9 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
         </button>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* 列主序填充:左列 SERVER/KEYS/HOTKEY,右列 QUERY/SYSTEM(行主序拿不到这个列分配,故 flow-col+rows-3) */}
+        <div className="grid grid-cols-2 grid-rows-3 grid-flow-col gap-3 items-start">
         <Section title={t("settings.secServer")}>
           <div className="space-y-1">
             <label className={LABEL_CLS} htmlFor="serverUrl">
@@ -159,6 +161,21 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
           </div>
         </Section>
 
+        <Section title={t("settings.hotkey")}>
+          <div className="flex items-center gap-2">
+            <code className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-300">
+              {form.hotkey}
+            </code>
+            <button
+              onClick={() => setCapturing(true)}
+              className="rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 transition active:scale-[0.98] hover:bg-zinc-700 hover:text-zinc-100"
+            >
+              {t("settings.captureHotkey")}
+            </button>
+          </div>
+          {capturing && <p className="text-xs text-emerald-400">{t("settings.captureHint")}</p>}
+        </Section>
+
         <Section title={t("settings.secQuery")}>
           <div className="space-y-1">
             <label className={LABEL_CLS} htmlFor="maxIps">
@@ -193,21 +210,6 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
               </label>
             ))}
           </div>
-        </Section>
-
-        <Section title={t("settings.hotkey")}>
-          <div className="flex items-center gap-2">
-            <code className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-300">
-              {form.hotkey}
-            </code>
-            <button
-              onClick={() => setCapturing(true)}
-              className="rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300 transition active:scale-[0.98] hover:bg-zinc-700 hover:text-zinc-100"
-            >
-              {t("settings.captureHotkey")}
-            </button>
-          </div>
-          {capturing && <p className="text-xs text-emerald-400">{t("settings.captureHint")}</p>}
         </Section>
 
         <Section title={t("settings.secSystem")}>
@@ -260,9 +262,10 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
             {t("settings.autostart")}
           </label>
         </Section>
+        </div>
 
         {applyHint && (
-          <p className="border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-400">
+          <p className="mt-3 border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-400">
             {applyHint}
           </p>
         )}
