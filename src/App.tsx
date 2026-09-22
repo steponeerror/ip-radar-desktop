@@ -415,6 +415,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
             )}
             <ResultList
               results={results}
+              selectedIp={null}
               onSelect={ip => {
                 setSelectedIp(ip);
                 setFromList(true);
