@@ -94,6 +94,17 @@ fn main() {
     tauri::Builder::default()
         .manage(HotkeyState(Mutex::new(None)))
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| show(app)))
+        // 只恢复几何(尺寸/位置/最大化):默认 all() 含 VISIBLE,会在上次保存时窗口
+        // 可见的情形下启动即 show(),破坏 visible:false 托盘常驻/热键唤起语义。
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::POSITION
+                        | tauri_plugin_window_state::StateFlags::MAXIMIZED,
+                )
+                .build(),
+        )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_store::Builder::new().build())

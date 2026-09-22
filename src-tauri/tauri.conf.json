@@ -14,8 +14,10 @@
       {
         "label": "main",
         "title": "IP Radar Desktop",
-        "width": 420,
-        "height": 680,
+        "width": 780,
+        "height": 500,
+        "minWidth": 640,
+        "minHeight": 400,
         "decorations": false,
         "transparent": true,
         "shadow": false,

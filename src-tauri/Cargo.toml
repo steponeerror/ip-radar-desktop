@@ -20,6 +20,7 @@ tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-store = "2.4.5"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-single-instance = "2.4.5"
+tauri-plugin-window-state = "2"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
