@@ -1,11 +1,11 @@
-// 单 IP 详情:brutalist 分区制 —— 直角 hairline compartment + gap-px 发丝网格(§8.1),
-// 徽章/色语义逐字对齐 server(threatDisplay.ts)。每源一个 Section 分区。
+// 单 IP 详情:双栏锚定制 —— SummaryCard 区 shrink-0 固定不滚(看长分类列表时
+// "这是谁的情报"永远在视野),源卡区独立滚动;分区为 rounded-lg compartment +
+// gap-px 发丝网格,徽章/色语义逐字对齐 server(threatDisplay.ts)。每源一个 Section 分区。
 import type { SourceSection, Settings } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
 import type { AbuseSection } from "../sources/abuseipdb";
 import { VERDICT_STYLE, scoreTone, TECH_LABEL } from "./badges";
 import { useI18n } from "../i18n";
-import { ArrowLeft } from "@phosphor-icons/react";
 
 function abuseOf(sec: SourceSection): AbuseSection | undefined {
   return sec.sourceId === "abuseipdb" && sec.status === "ok"
@@ -155,15 +155,11 @@ export function ResultDetail({
   ip,
   sections,
   settings,
-  onBack,
-  backLabel,
   onGoSettings,
 }: {
   ip: string;
   sections: SourceSection[];
   settings: Settings;
-  onBack: () => void;
-  backLabel: string;
   onGoSettings: () => void;
 }) {
   const { t } = useI18n();
@@ -171,16 +167,10 @@ export function ResultDetail({
   const d = ipradar?.status === "ok" ? (ipradar.data as LookupResult) : undefined;
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-2">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-500 transition active:scale-[0.97] hover:bg-zinc-800 hover:text-zinc-300"
-        >
-          <ArrowLeft size={12} weight="bold" /> {backLabel}
-        </button>
-      </div>
-      <div className="space-y-3 overflow-y-auto p-4">
+      <div className="shrink-0 p-4 pb-3">
         <SummaryCard ip={ip} d={d} />
+      </div>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 pt-0">
         {sections.map(sec => {
           if (sec.status === "ok" && sec.sourceId === "ipradar" && d) return <IpradarCard key={sec.sourceId} d={d} />;
           if (sec.status === "ok" && sec.sourceId === "abuseipdb") {

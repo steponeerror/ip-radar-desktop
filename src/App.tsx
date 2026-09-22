@@ -86,7 +86,6 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const [view, setView] = useState<View>("input");
   const [results, setResults] = useState<Map<string, SourceSection[]>>(new Map());
   const [selectedIp, setSelectedIp] = useState<string | null>(null);
-  const [fromList, setFromList] = useState(false);
   const [truncated, setTruncated] = useState<{ total: number; max: number } | null>(null);
   const [warming, setWarming] = useState(false);
   const [inputText, setInputText] = useState("");
@@ -146,7 +145,6 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       setNoIpHint(false);
       if (ips.length === 1) {
         setSelectedIp(ips[0]);
-        setFromList(false);
         setView("detail");
       } else {
         setView("list");
@@ -418,7 +416,6 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
               selectedIp={null}
               onSelect={ip => {
                 setSelectedIp(ip);
-                setFromList(true);
                 setView("detail");
               }}
             />
@@ -441,8 +438,6 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                 ip={selectedIp}
                 sections={detailSections}
                 settings={settings}
-                backLabel={fromList ? t("query.backToList") : t("common.back")}
-                onBack={() => setView(fromList ? "list" : "input")}
                 onGoSettings={() => {
                   setReturnView("detail");
                   setView("settings");
