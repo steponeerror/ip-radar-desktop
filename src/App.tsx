@@ -1,4 +1,4 @@
-// 主 UI 状态机:input → querying → list/detail(+settings 桩,Task 8 落地)。
+// 主 UI(双栏):常驻查询栏 → banners → 左列表(w-72)/右详情;settings 整窗覆盖态。
 // 唤起链路:Rust 快捷键 → emit("hotkey-triggered") → 读剪贴板 → extractIps → 分发查询。
 // warming(503 code):轮询 /api/db-status(5s 起 ×2 至 30s 封顶),就绪后重发原查询。
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,7 +19,7 @@ import { ResultDetail } from "./components/ResultDetail";
 import { SettingsPage } from "./components/SettingsPage";
 import { Gear, Minus, X, Moon, Sun } from "@phosphor-icons/react";
 
-type View = "input" | "querying" | "list" | "detail" | "settings";
+type View = "main" | "settings";
 
 /** 任一 ipradar section 报 401 → 无 key 引导(新版 server 跨源必持 Bearer)。 */
 function needsKeyGuidance(results: Map<string, SourceSection[]>): boolean {
@@ -47,7 +47,7 @@ function invalidLinesOf(results: Map<string, SourceSection[]>): number {
   return 0;
 }
 
-/** 无 key 引导卡:list 与 detail 两个视图共用(401 首启路径也能看到)。 */
+/** 无 key 引导卡:横贯双栏上方的琥珀条(401 首启路径也能看到)。 */
 function GuidanceCard({ serverUrl, onGoSettings }: { serverUrl: string; onGoSettings: () => void }) {
   const { t } = useI18n();
   return (
@@ -62,6 +62,24 @@ function GuidanceCard({ serverUrl, onGoSettings }: { serverUrl: string; onGoSett
       >
         {t("guidance.goSettings")}
       </button>
+    </div>
+  );
+}
+
+/** 左栏查询骨架:双行行形(首行 IP+徽章形,次行小字形)。 */
+function ListSkeleton({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-1.5 border-b border-zinc-800/60 px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-32 animate-pulse rounded bg-zinc-800" />
+            <div className="h-4 w-12 animate-pulse rounded bg-zinc-800" />
+          </div>
+          <div className="h-2.5 w-24 animate-pulse rounded bg-zinc-800" />
+        </div>
+      ))}
+      <span className="px-4 pt-3 text-center text-xs text-zinc-500">{label}</span>
     </div>
   );
 }
@@ -83,22 +101,21 @@ export default function App() {
 
 function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSettingsSaved: (s: Settings) => void }) {
   const { t } = useI18n();
-  const [view, setView] = useState<View>("input");
+  const [view, setView] = useState<View>("main");
   const [results, setResults] = useState<Map<string, SourceSection[]>>(new Map());
   const [selectedIp, setSelectedIp] = useState<string | null>(null);
   const [truncated, setTruncated] = useState<{ total: number; max: number } | null>(null);
   const [warming, setWarming] = useState(false);
   const [inputText, setInputText] = useState("");
   const [noIpHint, setNoIpHint] = useState(false);
-  const [queryingSingle, setQueryingSingle] = useState(false);
-  const [returnView, setReturnView] = useState<View>("input");
+  const [querying, setQuerying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 查询用最新 settings/上轮 ips —— 事件监听一次性注册,经 ref 防陈旧闭包
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const lastIpsRef = useRef<string[]>([]);
-  const lastTruncRef = useRef<{ total: number; max: number } | undefined>(undefined);
+  const lastTruncRef = useRef<{ total: number; max: number } | undefined>( undefined);
   const pollTimerRef = useRef<number | null>(null);
   // 查询代际:旧查询在飞时新查询取代 → 旧响应丢弃,防陈旧覆盖
   const queryEpochRef = useRef(0);
@@ -125,10 +142,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       lastIpsRef.current = ips;
       lastTruncRef.current = trunc;
       setTruncated(trunc ?? null);
-      setQueryingSingle(ips.length === 1);
-      setView("querying");
+      setQuerying(true);
       // 纵深防御(C1):调度器已把单源异常转 error section,这里兑底任何漏网异常,
-      // 保证绝不永久停在 querying 视图
+      // 保证绝不永久停在 querying 态
       let map: Map<string, SourceSection[]>;
       try {
         map = await runSources(ips, getSources(), settingsRef.current);
@@ -143,12 +159,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       if (epoch !== queryEpochRef.current) return;   // 被更新查询取代:丢弃陈旧结果
       setResults(map);
       setNoIpHint(false);
-      if (ips.length === 1) {
-        setSelectedIp(ips[0]);
-        setView("detail");
-      } else {
-        setView("list");
-      }
+      // 单/多 IP 统一:首项即选中,右栏永不空(GC#3)
+      setSelectedIp(ips[0]);
+      setQuerying(false);
       if (anyWarming(map)) startWarmingRef.current();
     },
     [stopWarmingPoll],
@@ -184,13 +197,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   };
   startWarmingRef.current = startWarmingPoll;
 
-  /** 剪贴板/手输共用分发:1 个直接查;多个查列表;0 个回输入框。 */
+  /** 剪贴板/手输共用分发:≥1 个进查询;0 个提示无 IP(输入已聚焦,直接改稿重查)。 */
   const dispatch = useCallback(
     (text: string) => {
       const { ips, total } = extractIps(text, settingsRef.current.maxIps);
       if (ips.length === 0) {
-        setView("input");
         setNoIpHint(true);
+        inputRef.current?.focus();
         return;
       }
       const trunc = total > ips.length ? { total, max: settingsRef.current.maxIps } : undefined;
@@ -234,10 +247,10 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     return () => window.removeEventListener("keydown", handler);
   }, [view]);
 
-  // 进入 input 视图聚焦输入框(快捷键 0 命中/返回)
+  // 常驻查询栏:挂载即聚焦(窗口常驻进程,热键 0 命中路径由 dispatch 兜底再聚焦)
   useEffect(() => {
-    if (view === "input") inputRef.current?.focus();
-  }, [view]);
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => () => stopWarmingPoll(), [stopWarmingPoll]);
 
@@ -261,9 +274,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     dispatch(inputText);
   };
 
-  const guidance = needsKeyGuidance(results) && (view === "list" || view === "detail");
+  const goSettings = () => setView("settings");
+  const guidance = needsKeyGuidance(results) && view === "main";
   const detailSections = selectedIp ? (results.get(selectedIp) ?? []) : [];
   const invalidLines = invalidLinesOf(results);
+  // 左栏分派:查询中且无旧结果 → 骨架;有旧结果 → 保留旧列表(stale-while-revalidate,防重查闪烁);
+  // 未查询 → 粘贴提示;已查询 0 结果 → ResultList 内部空态
+  const showSkeleton = querying && results.size === 0;
 
   return (
     <div className="dot-grid flex h-screen w-full flex-col overflow-hidden rounded-xl bg-zinc-950 text-zinc-100">
@@ -303,10 +320,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
           <button
             aria-label="settings"
             onClick={() => {
-              if (view !== "settings") {
-                setReturnView(view);
-                setView("settings");
-              }
+              if (view !== "settings") setView("settings");
             }}
             className="rounded-md p-1.5 text-zinc-500 transition active:scale-[0.95] hover:bg-zinc-800 hover:text-zinc-300"
           >
@@ -315,144 +329,83 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         </div>
       </header>
 
-      {warming && (
-        <div className="flex items-center gap-2 border-b border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs text-amber-400">
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-          {t("query.warming")}
-        </div>
-      )}
-      {truncated && (view === "querying" || view === "list" || view === "detail") && (
-        <div className="border-b border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-400">
-          {t("query.truncated", truncated)}
-        </div>
-      )}
-      {invalidLines > 0 && (view === "querying" || view === "list" || view === "detail") && (
-        <div className="border-b border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-400">
-          {t("query.invalidLines", { n: invalidLines })}
-        </div>
-      )}
-
-      <main key={view} className="fade-in flex-1 overflow-hidden">
-        {view === "input" && (
-          <div className="p-4">
-            <div className="overflow-hidden rounded-lg border border-zinc-800">
-              <div className="border-b border-zinc-800 bg-zinc-900/60 px-3 py-1.5">
-                <span className={TECH_LABEL}>{t("query.sectionLabel")}</span>
+      <main key={view} className="fade-in min-h-0 flex-1 overflow-hidden">
+        {view === "settings" ? (
+          <SettingsPage initial={settings} onSaved={onSettingsSaved} onClose={() => setView("main")} />
+        ) : (
+          <div className="flex h-full flex-col">
+            {/* 常驻查询栏 */}
+            <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+              <input
+                ref={inputRef}
+                value={inputText}
+                onChange={e => {
+                  setInputText(e.target.value);
+                  setNoIpHint(false);
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Enter") submitInput();
+                }}
+                placeholder={t("query.placeholder")}
+                className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-200 transition-colors placeholder:font-sans placeholder:text-zinc-600 focus:border-emerald-600 focus:outline-none"
+              />
+              <button
+                onClick={submitInput}
+                className="shrink-0 rounded-md bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950 transition hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {t("query.go")}
+              </button>
+            </div>
+            {noIpHint && (
+              <div className="border-b border-zinc-800 px-4 py-1.5 text-xs text-zinc-500">{t("query.noIp")}</div>
+            )}
+            {guidance && <GuidanceCard serverUrl={settings.serverUrl} onGoSettings={goSettings} />}
+            {warming && (
+              <div className="flex items-center gap-2 border-b border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs text-amber-400">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                {t("query.warming")}
               </div>
-              <div className="space-y-2 p-3">
-                <input
-                  ref={inputRef}
-                  value={inputText}
-                  onChange={e => {
-                    setInputText(e.target.value);
-                    setNoIpHint(false);
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === "Enter") submitInput();
-                  }}
-                  placeholder={t("query.placeholder")}
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-sm text-zinc-200 transition-colors placeholder:font-sans placeholder:text-zinc-600 focus:border-emerald-600 focus:outline-none"
-                />
-                <button
-                  onClick={submitInput}
-                  className="self-end rounded-md bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-zinc-950 transition hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  {t("query.go")}
-                </button>
+            )}
+            {truncated && (
+              <div className="border-b border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-400">
+                {t("query.truncated", truncated)}
+              </div>
+            )}
+            {invalidLines > 0 && (
+              <div className="border-b border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-400">
+                {t("query.invalidLines", { n: invalidLines })}
+              </div>
+            )}
+
+            {/* 双栏:左列表 / 右详情 */}
+            <div className="flex min-h-0 flex-1">
+              <div className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800">
+                {showSkeleton ? (
+                  <ListSkeleton label={t("query.lookingUp")} />
+                ) : results.size === 0 ? (
+                  <div className="flex h-full items-center justify-center px-6">
+                    <span className={`${TECH_LABEL} text-center leading-relaxed`}>{t("query.emptyHint")}</span>
+                  </div>
+                ) : (
+                  <ResultList results={results} selectedIp={selectedIp} onSelect={setSelectedIp} />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                {selectedIp ? (
+                  <ResultDetail
+                    ip={selectedIp}
+                    sections={detailSections}
+                    settings={settings}
+                    onGoSettings={goSettings}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-8">
+                    <span className={`${TECH_LABEL} text-center leading-relaxed`}>{t("query.emptyHint")}</span>
+                  </div>
+                )}
               </div>
             </div>
-            {noIpHint && <p className="mt-2 text-xs text-zinc-500">{t("query.noIp")}</p>}
           </div>
-        )}
-
-        {view === "querying" && (
-          <div className="flex h-full flex-col overflow-hidden p-4">
-            {queryingSingle ? (
-              <div className="space-y-3">
-                <div className="overflow-hidden rounded-lg border border-zinc-800">
-                  <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                    <div className="h-5 w-44 animate-pulse rounded bg-zinc-800" />
-                    <div className="h-4 w-14 animate-pulse rounded bg-zinc-800" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-px bg-zinc-800/70">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="h-8 animate-pulse bg-zinc-950" />
-                    ))}
-                  </div>
-                </div>
-                <div className="h-16 animate-pulse rounded-lg border border-zinc-800" />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 border-b border-zinc-800/60 pb-3"
-                  >
-                    <div className="h-4 w-32 animate-pulse bg-zinc-800" />
-                    <div className="h-4 w-12 animate-pulse bg-zinc-800" />
-                    <div className="ml-auto h-3 w-16 animate-pulse bg-zinc-800" />
-                  </div>
-                ))}
-              </div>
-            )}
-            <span className="pt-4 text-center text-xs text-zinc-500">{t("query.lookingUp")}</span>
-          </div>
-        )}
-
-        {view === "list" && (
-          <div className="flex h-full flex-col">
-            {guidance && (
-              <GuidanceCard
-                serverUrl={settings.serverUrl}
-                onGoSettings={() => {
-                  setReturnView("list");
-                  setView("settings");
-                }}
-              />
-            )}
-            <ResultList
-              results={results}
-              selectedIp={null}
-              onSelect={ip => {
-                setSelectedIp(ip);
-                setView("detail");
-              }}
-            />
-          </div>
-        )}
-
-        {view === "detail" && selectedIp && (
-          <div className="flex h-full flex-col">
-            {guidance && (
-              <GuidanceCard
-                serverUrl={settings.serverUrl}
-                onGoSettings={() => {
-                  setReturnView("detail");
-                  setView("settings");
-                }}
-              />
-            )}
-            <div className="min-h-0 flex-1">
-              <ResultDetail
-                ip={selectedIp}
-                sections={detailSections}
-                settings={settings}
-                onGoSettings={() => {
-                  setReturnView("detail");
-                  setView("settings");
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {view === "settings" && (
-          <SettingsPage
-            initial={settings}
-            onSaved={onSettingsSaved}
-            onClose={() => setView(returnView)}
-          />
         )}
       </main>
     </div>
