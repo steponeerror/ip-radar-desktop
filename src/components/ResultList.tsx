@@ -3,7 +3,8 @@
 // 选中行 bg-zinc-800/60(双栏 master 状态);已查询 0 结果 → 内部"无结果"空态。
 import type { SourceSection } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
-import { VERDICT_STYLE } from "./badges";
+import type { AbuseSection } from "../sources/abuseipdb";
+import { VERDICT_STYLE, scoreTextTone } from "./badges";
 import { useI18n } from "../i18n";
 
 export function ipradarOf(sections: SourceSection[]): LookupResult | undefined {
@@ -32,7 +33,11 @@ export function ResultList({
   return (
     <div className="overflow-y-auto">
       {ips.map(ip => {
-        const d = ipradarOf(results.get(ip)!);
+        const secs = results.get(ip)!;
+        const d = ipradarOf(secs);
+        const ab = secs.find(s => s.sourceId === "abuseipdb" && s.status === "ok")?.data as
+          | AbuseSection
+          | undefined;
         const verdict = d?.threat?.verdict;
         const selected = ip === selectedIp;
         return (
@@ -56,8 +61,15 @@ export function ResultList({
                 <span className="shrink-0 text-[11px] text-zinc-700">-</span>
               )}
             </span>
-            <span className="truncate text-[10px] text-zinc-500">
-              {d?.country?.value ?? "-"} · {d?.as_name?.value ?? "-"}
+            <span className="flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-[10px] text-zinc-500">
+                {d?.country?.value ?? "-"} · {d?.as_name?.value ?? "-"}
+              </span>
+              {ab && (
+                <span className={`shrink-0 font-mono text-[10px] font-semibold ${scoreTextTone(ab.score)}`}>
+                  {ab.score}
+                </span>
+              )}
             </span>
           </button>
         );

@@ -18,3 +18,10 @@ export function scoreTone(score: number): string {
   if (score >= 25) return "bg-amber-500";
   return "bg-emerald-500";
 }
+
+/** 同色阶的文字版(列表行/手风琴 header 的分数徽章)。 */
+export function scoreTextTone(score: number): string {
+  if (score >= 60) return "text-red-300";
+  if (score >= 25) return "text-amber-300";
+  return "text-emerald-300";
+}

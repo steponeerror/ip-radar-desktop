@@ -1,10 +1,14 @@
-// 单 IP 详情:双栏锚定制 —— SummaryCard 区 shrink-0 固定不滚(看长分类列表时
-// "这是谁的情报"永远在视野),源卡区独立滚动;分区为 rounded-lg compartment +
-// gap-px 发丝网格,徽章/色语义逐字对齐 server(threatDisplay.ts)。每源一个 Section 分区。
+// 单 IP 详情(判定优先 + 源手风琴):SummaryCard 瘦身为两行 —— 行1 IP+融合判定
+// 徽章(+威胁类型 chips),行2 地理/网络信息 chips(有值才显示,不再六格占位"-")。
+// 源区 = 手风琴行:header 常显源名+判定/分数徽章(一眼全览全部源状态),点击展开
+// 详情;默认展开 = 有威胁的源(malicious/suspicious)+ 出错的源,全干净时展开
+// 第一个 ok 源(优先分数卡)。2 源全收起 ~130px,展开 1 个不滚;源数线性可扩。
+import { useState } from "react";
+import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { SourceSection, Settings } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
 import type { AbuseSection } from "../sources/abuseipdb";
-import { VERDICT_STYLE, scoreTone, TECH_LABEL } from "./badges";
+import { VERDICT_STYLE, scoreTone, scoreTextTone, TECH_LABEL } from "./badges";
 import { useI18n } from "../i18n";
 
 function abuseOf(sec: SourceSection): AbuseSection | undefined {
@@ -21,32 +25,44 @@ function errorText(code: number | undefined, message: string, retryAfter: number
   return message;
 }
 
-/** 发丝网格单元格:微字标 + mono 值。父级 grid gap-px bg-zinc-800 生成 hairline。 */
-function Cell({ label, value, wide }: { label: string; value: string | number | undefined | null; wide?: boolean }) {
-  const shown = value === undefined || value === null || value === "" ? "-" : String(value);
-  return (
-    <div className={`bg-zinc-950 px-3 py-2 ${wide ? "col-span-2" : ""}`}>
-      <div className={TECH_LABEL}>{label}</div>
-      <div className="mt-0.5 truncate font-mono text-xs text-zinc-300" title={shown}>{shown}</div>
-    </div>
-  );
+/** AbuseIPDB 分数 → 威胁语义(仅用于手风琴默认展开判定,与 scoreTone 色阶同带)。 */
+function abuseThreat(a: AbuseSection | undefined): "malicious" | "suspicious" | undefined {
+  if (!a) return undefined;
+  if (a.score >= 60) return "malicious";
+  if (a.score >= 25) return "suspicious";
+  return undefined;
 }
 
-/** 结构分区:直角 hairline 盒,标题条 = 微字标 + 右侧遥测读数。 */
-function Section({ title, right, children, tone }: {
-  title: string;
-  right?: React.ReactNode;
-  children: React.ReactNode;
-  tone?: "error";
-}) {
+/** 默认展开集:有威胁的源 + 出错的源(错误永不折叠);全干净展开第一个 ok 源(优先分数卡)。 */
+function defaultOpen(sections: SourceSection[], d: LookupResult | undefined): Set<string> {
+  const open = new Set<string>();
+  const okIds: string[] = [];
+  let threatened = false;
+  for (const s of sections) {
+    if (s.status === "error") open.add(s.sourceId);
+    if (s.status !== "ok") continue;
+    okIds.push(s.sourceId);
+    const v =
+      s.sourceId === "ipradar" ? d?.threat?.verdict : abuseThreat(abuseOf(s));
+    if (v === "malicious" || v === "suspicious") {
+      open.add(s.sourceId);
+      threatened = true;
+    }
+  }
+  if (!threatened) {
+    const first = okIds.find(id => id === "abuseipdb") ?? okIds[0];
+    if (first) open.add(first);
+  }
+  return open;
+}
+
+/** 信息 chip:微字标 + mono 值,有值才渲染。 */
+function InfoChip({ k, v }: { k: string; v: string }) {
   return (
-    <div className={`overflow-hidden rounded-lg border ${tone === "error" ? "border-red-500/25 bg-red-500/5" : "border-zinc-800"}`}>
-      <div className={`flex items-center justify-between gap-2 border-b px-3 py-1.5 ${tone === "error" ? "border-red-500/20 bg-red-500/5" : "border-zinc-800 bg-zinc-900/60"}`}>
-        <span className={tone === "error" ? "font-mono text-[10px] uppercase tracking-[0.1em] text-red-400" : TECH_LABEL}>{title}</span>
-        {right}
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
+    <span className="inline-flex max-w-full items-baseline gap-1.5 rounded bg-zinc-800/70 px-1.5 py-0.5">
+      <span className={`${TECH_LABEL} shrink-0`}>{k}</span>
+      <span className="min-w-0 truncate font-mono text-[11px] text-zinc-300" title={v}>{v}</span>
+    </span>
   );
 }
 
@@ -55,9 +71,20 @@ function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
   const verdict = d?.threat?.verdict;
   const city = d?.city?.value && d.city.value !== "N/A" ? d.city.value : undefined;
   const cityZh = d?.city_zh ?? undefined;
+  const geo = [d?.country?.value, city ? `${city}${cityZh ? `(${cityZh})` : ""}` : undefined]
+    .filter(Boolean)
+    .join("·");
+  const gps = d?.location ? `${d.location.lat.toFixed(2)},${d.location.lon.toFixed(2)}` : undefined;
+  const chips: Array<[string, string]> = [
+    [t("column.country"), geo],
+    ["ASN", d?.asn?.value ?? undefined],
+    [t("column.operator"), d?.as_name?.value ?? undefined],
+    [t("ipDetail.range"), d?.ip_range?.value ?? undefined],
+    ["GPS", gps],
+  ].filter((c): c is [string, string] => Boolean(c[1]));
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-800">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/60 px-3 py-2">
         <h2 className="min-w-0 truncate font-mono text-xl tracking-tight text-zinc-100" title={ip}>{ip}</h2>
         {d?.is_reserved ? (
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE.reserved}`}>
@@ -73,7 +100,7 @@ function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
         ) : null}
       </div>
       {(d?.threat?.types?.length ?? 0) > 0 && (
-        <div className="flex flex-wrap gap-1 border-b border-zinc-800 px-3 py-2">
+        <div className="flex flex-wrap gap-1 border-b border-zinc-800 px-3 py-1.5">
           {d!.threat!.types.map(type => (
             <span key={type} className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300">
               {type}
@@ -81,43 +108,42 @@ function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
           ))}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-px bg-zinc-800/70">
-        <Cell label={t("column.country")} value={d?.country?.value} />
-        <Cell label={t("column.city")} value={cityZh ? `${city ?? ""}(${cityZh})` : city} />
-        <Cell label="ASN" value={d?.asn?.value} />
-        <Cell label={t("column.operator")} value={d?.as_name?.value} />
-        <Cell label={t("ipDetail.range")} value={d?.ip_range?.value} />
-        <Cell label="GPS" value={d?.location ? `${d.location.lat.toFixed(2)},${d.location.lon.toFixed(2)}` : undefined} />
-      </div>
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-3 py-2">
+          {chips.map(([k, v]) => (
+            <InfoChip key={k} k={k} v={v} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function IpradarCard({ d }: { d: LookupResult }) {
+function IpradarBody({ d }: { d: LookupResult }) {
   const { t } = useI18n();
   const entries = Object.entries(d.classifications ?? {})
     .filter(([, c]) => c.detected)
     .sort((a, b) => b[1].confidence - a[1].confidence);
-  if (entries.length === 0) return null;
+  if (entries.length === 0) {
+    return <p className="text-xs text-zinc-500">-</p>;
+  }
   return (
-    <Section title={t("src.ipradar")} right={<span className="font-mono text-xs text-zinc-500">{entries.length} cls</span>}>
-      <ul className="space-y-1.5">
-        {entries.map(([type, c]) => (
-          <li key={type} className="flex items-center gap-2 text-xs">
-            <span className="font-mono text-zinc-300">{type}</span>
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
-              {t(`verdict.${c.verdict}`)}
+    <ul className="space-y-1.5">
+      {entries.map(([type, c]) => (
+        <li key={type} className="flex items-center gap-2 text-xs">
+          <span className="font-mono text-zinc-300">{type}</span>
+          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
+            {t(`verdict.${c.verdict}`)}
+          </span>
+          <span className="font-mono text-[10px] text-zinc-500">{c.confidence}</span>
+          {c.malware_names.length > 0 && (
+            <span className="truncate text-[10px] text-zinc-600" title={c.malware_names.join(", ")}>
+              {c.malware_names.join(", ")}
             </span>
-            <span className="font-mono text-[10px] text-zinc-500">{c.confidence}</span>
-            {c.malware_names.length > 0 && (
-              <span className="truncate text-[10px] text-zinc-600" title={c.malware_names.join(", ")}>
-                {c.malware_names.join(", ")}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </Section>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -132,10 +158,10 @@ function Row({ label, value }: { label: string; value: string | number | undefin
   );
 }
 
-function AbuseCard({ a }: { a: AbuseSection }) {
+function AbuseBody({ a }: { a: AbuseSection }) {
   const { t } = useI18n();
   return (
-    <Section title={t("src.abuseipdb")} right={<span className="font-mono text-sm text-zinc-200">{a.score}/100</span>}>
+    <div>
       <div className="mb-2 h-1 w-full rounded-full bg-zinc-800">
         <div
           className={`h-1 rounded-full ${scoreTone(a.score)}`}
@@ -163,7 +189,38 @@ function AbuseCard({ a }: { a: AbuseSection }) {
           </ul>
         </details>
       )}
-    </Section>
+    </div>
+  );
+}
+
+/** 源手风琴行:header 常显(源名 + 右侧徽章),点击展开/收起 body。 */
+function SourceRow({ title, badge, defaultOpen: openByDefault, errorTone, children }: {
+  title: string;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  errorTone?: boolean;
+  children?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(openByDefault ?? false);
+  return (
+    <div className={`overflow-hidden rounded-lg border ${errorTone ? "border-red-500/25" : "border-zinc-800"}`}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-zinc-900/60 ${errorTone ? "bg-red-500/5" : ""}`}
+      >
+        <span className={`min-w-0 truncate ${errorTone ? "font-mono text-[10px] uppercase tracking-[0.1em] text-red-400" : TECH_LABEL}`}>{title}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          {badge}
+          {open ? (
+            <CaretDown size={11} className="text-zinc-500" />
+          ) : (
+            <CaretRight size={11} className="text-zinc-500" />
+          )}
+        </span>
+      </button>
+      {open && children && <div className="border-t border-zinc-800 p-3">{children}</div>}
+    </div>
   );
 }
 
@@ -181,22 +238,58 @@ export function ResultDetail({
   const { t } = useI18n();
   const ipradar = sections.find(s => s.sourceId === "ipradar");
   const d = ipradar?.status === "ok" ? (ipradar.data as LookupResult) : undefined;
+  const rowKey = (id: string) => `${ip}:${id}`;
+
   return (
     <div className="flex h-full flex-col">
       <div className="shrink-0 p-4 pb-3">
         <SummaryCard ip={ip} d={d} />
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 pt-0">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4 pt-0">
         {sections.map(sec => {
-          if (sec.status === "ok" && sec.sourceId === "ipradar" && d) return <IpradarCard key={sec.sourceId} d={d} />;
+          if (sec.status === "warming") return null; // App 顶部 warming 横幅已覆盖
+          if (sec.status === "ok" && sec.sourceId === "ipradar") {
+            const verdict = d?.threat?.verdict;
+            return (
+              <SourceRow
+                key={rowKey(sec.sourceId)}
+                title={t("src.ipradar")}
+                defaultOpen={defaultOpen(sections, d).has(sec.sourceId)}
+                badge={
+                  verdict ? (
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}>
+                      {t(`verdict.${verdict}`)}
+                    </span>
+                  ) : undefined
+                }
+              >
+                {d && <IpradarBody d={d} />}
+              </SourceRow>
+            );
+          }
           if (sec.status === "ok" && sec.sourceId === "abuseipdb") {
             const a = abuseOf(sec);
-            if (a) return <AbuseCard key={sec.sourceId} a={a} />;
+            if (!a) return null;
+            return (
+              <SourceRow
+                key={rowKey(sec.sourceId)}
+                title={t("src.abuseipdb")}
+                defaultOpen={defaultOpen(sections, d).has(sec.sourceId)}
+                badge={<span className={`font-mono text-xs font-semibold ${scoreTextTone(a.score)}`}>{a.score}/100</span>}
+              >
+                <AbuseBody a={a} />
+              </SourceRow>
+            );
           }
           if (sec.status === "needs-key") {
             if (!settings.showMissingKey) return null;
             return (
-              <Section key={sec.sourceId} title={t(`src.${sec.sourceId}`)}>
+              <SourceRow
+                key={rowKey(sec.sourceId)}
+                title={t(`src.${sec.sourceId}`)}
+                errorTone
+                badge={<span className="text-[10px] text-zinc-500">{t("guidance.needsKey")}</span>}
+              >
                 <p className="text-xs text-zinc-500">{t("guidance.needsKey")}</p>
                 <button
                   onClick={onGoSettings}
@@ -204,16 +297,21 @@ export function ResultDetail({
                 >
                   {t("guidance.goSettings")}
                 </button>
-              </Section>
+              </SourceRow>
             );
           }
           if (sec.status === "error" && sec.error?.code !== "warming") {
             return (
-              <Section key={sec.sourceId} title={t(`src.${sec.sourceId}`)} tone="error">
+              <SourceRow
+                key={rowKey(sec.sourceId)}
+                title={t(`src.${sec.sourceId}`)}
+                errorTone
+                badge={<span className="text-[10px] uppercase text-red-400/80">{t("src.error")}</span>}
+              >
                 <p className="text-xs text-red-400">
                   {errorText(sec.error?.status, sec.error?.message ?? "", sec.error?.retryAfter, t)}
                 </p>
-              </Section>
+              </SourceRow>
             );
           }
           return null;
