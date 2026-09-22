@@ -134,18 +134,19 @@ fn main() {
             {
                 use windows_sys::Win32::Foundation::HWND;
                 use windows_sys::Win32::Graphics::Dwm::{
-                    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
-                    DWM_WINDOW_CORNER_PREFERENCE_DWMWCP_ROUND,
+                    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
                 };
                 if let Some(w) = app.get_webview_window("main") {
                     let h = w.hwnd()?;
-                    let pref = DWM_WINDOW_CORNER_PREFERENCE_DWMWCP_ROUND;
-                    DwmSetWindowAttribute(
-                        HWND(h.0 as isize),
-                        DWMWA_WINDOW_CORNER_PREFERENCE as u32,
-                        &pref as *const _ as *const core::ffi::c_void,
-                        std::mem::size_of_val(&pref) as u32,
-                    );
+                    let pref = DWMWCP_ROUND;
+                    unsafe {
+                        DwmSetWindowAttribute(
+                            h.0 as isize as HWND,
+                            DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+                            &pref as *const _ as *const core::ffi::c_void,
+                            std::mem::size_of_val(&pref) as u32,
+                        );
+                    }
                 }
             }
 
