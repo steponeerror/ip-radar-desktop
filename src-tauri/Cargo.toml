@@ -29,3 +29,6 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Graphics_Dwm"] }

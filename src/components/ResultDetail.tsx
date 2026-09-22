@@ -121,31 +121,47 @@ function IpradarCard({ d }: { d: LookupResult }) {
   );
 }
 
+/** 横排键值行(紧凑):label 左、mono 值右 truncate。 */
+function Row({ label, value }: { label: string; value: string | number | undefined | null }) {
+  const shown = value === undefined || value === null || value === "" ? "-" : String(value);
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
+      <span className={TECH_LABEL}>{label}</span>
+      <span className="min-w-0 truncate font-mono text-xs text-zinc-300" title={shown}>{shown}</span>
+    </div>
+  );
+}
+
 function AbuseCard({ a }: { a: AbuseSection }) {
   const { t } = useI18n();
   return (
     <Section title={t("src.abuseipdb")} right={<span className="font-mono text-sm text-zinc-200">{a.score}/100</span>}>
-      <div className="mb-3 h-1 w-full rounded-full bg-zinc-800">
+      <div className="mb-2 h-1 w-full rounded-full bg-zinc-800">
         <div
           className={`h-1 rounded-full ${scoreTone(a.score)}`}
           style={{ width: `${Math.min(Math.max(a.score, 0), 100)}%` }}
         />
       </div>
-      <div className="-mx-3 -mb-3 grid grid-cols-2 gap-px bg-zinc-800/70">
-        <Cell label={t("abuse.country")} value={a.countryCode} />
-        <Cell label={t("abuse.isp")} value={a.isp} />
-        <Cell label={t("abuse.usage")} value={a.usageType} />
-        <Cell label={t("abuse.tor")} value={a.isTor ? "true" : undefined} />
-        <Cell label={t("abuse.reports")} value={a.totalReports} />
-        <Cell label={t("abuse.reporters")} value={a.numDistinctUsers} />
-        <Cell label={t("abuse.last")} value={a.lastReportedAt?.slice(0, 10)} wide />
+      <div className="divide-y divide-zinc-800/60">
+        <Row label={t("abuse.country")} value={a.countryCode} />
+        <Row label={t("abuse.isp")} value={a.isp} />
+        <Row label={t("abuse.usage")} value={a.usageType} />
+        <Row label={t("abuse.tor")} value={a.isTor ? "true" : undefined} />
+        <Row label={t("abuse.reports")} value={a.totalReports} />
+        <Row label={t("abuse.reporters")} value={a.numDistinctUsers} />
+        <Row label={t("abuse.last")} value={a.lastReportedAt?.slice(0, 10)} />
       </div>
       {a.recentComments.length > 0 && (
-        <ul className="mt-3 list-disc space-y-0.5 pl-4 text-xs text-zinc-500">
-          {a.recentComments.map((c, i) => (
-            <li key={i} className="truncate" title={c}>{c}</li>
-          ))}
-        </ul>
+        <details className="mt-2">
+          <summary className={`${TECH_LABEL} cursor-pointer select-none hover:text-zinc-300`}>
+            {a.recentComments.length} reports ▾
+          </summary>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-zinc-500">
+            {a.recentComments.map((c, i) => (
+              <li key={i} className="truncate" title={c}>{c}</li>
+            ))}
+          </ul>
+        </details>
       )}
     </Section>
   );

@@ -299,24 +299,21 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
           >
             {document.documentElement.classList.contains("light") ? <Moon size={15} /> : <Sun size={15} />}
           </button>
-          {import.meta.env.DEV && (
-            <>
-              <button
-                aria-label="minimize"
-                onClick={() => void import("@tauri-apps/api/window").then(m => m.getCurrentWindow().minimize())}
-                className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
-              >
-                <Minus size={14} />
-              </button>
-              <button
-                aria-label="close"
-                onClick={() => void import("@tauri-apps/api/window").then(m => m.getCurrentWindow().close())}
-                className="rounded-md p-1.5 text-zinc-500 transition hover:bg-red-500/15 hover:text-red-400"
-              >
-                <X size={14} />
-              </button>
-            </>
-          )}
+          <button
+            aria-label="minimize"
+            onClick={() => void import("@tauri-apps/api/window").then(m => m.getCurrentWindow().minimize())}
+            className="rounded-md p-1.5 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
+          >
+            <Minus size={14} />
+          </button>
+          <button
+            aria-label="close"
+            title={t("app.closeHint")}
+            onClick={() => invoke("hide_window").catch(() => {})}
+            className="rounded-md p-1.5 text-zinc-500 transition hover:bg-red-500/15 hover:text-red-400"
+          >
+            <X size={14} />
+          </button>
           <button
             aria-label="settings"
             onClick={() => {

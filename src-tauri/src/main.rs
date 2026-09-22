@@ -128,6 +128,27 @@ fn main() {
             set_autostart
         ])
         .setup(|app| {
+            // ── Win11 原生圆角(DWM):不用透明窗,保系统 resize 框架+阴影;
+            // DWMWCP_ROUND 磨圆角。Win10 无此属性时自动退化为方角(同 Raycast)。──
+            #[cfg(target_os = "windows")]
+            {
+                use windows_sys::Win32::Foundation::HWND;
+                use windows_sys::Win32::Graphics::Dwm::{
+                    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
+                    DWM_WINDOW_CORNER_PREFERENCE_DWMWCP_ROUND,
+                };
+                if let Some(w) = app.get_webview_window("main") {
+                    let h = w.hwnd()?;
+                    let pref = DWM_WINDOW_CORNER_PREFERENCE_DWMWCP_ROUND;
+                    DwmSetWindowAttribute(
+                        HWND(h.0 as isize),
+                        DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+                        &pref as *const _ as *const core::ffi::c_void,
+                        std::mem::size_of_val(&pref) as u32,
+                    );
+                }
+            }
+
             // ── Tray: menu (查询/退出) + left-click show ──
             let show_i = MenuItem::with_id(app, "show", "查询", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
