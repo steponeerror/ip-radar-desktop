@@ -1,14 +1,15 @@
-// 单 IP 详情(判定优先 + 源手风琴):SummaryCard 瘦身为两行 —— 行1 IP+融合判定
-// 徽章(+威胁类型 chips),行2 地理/网络信息 chips(有值才显示,不再六格占位"-")。
-// 源区 = 手风琴行:header 常显源名+判定/分数徽章(一眼全览全部源状态),点击展开
-// 详情;默认展开 = 有威胁的源(malicious/suspicious)+ 出错的源,全干净时展开
-// 第一个 ok 源(优先分数卡)。2 源全收起 ~130px,展开 1 个不滚;源数线性可扩。
+// 单 IP 详情(对比台 L2/L3):L2 身份条 = IP + 共识徽章(consensusOf,极性制),
+// 之下每源手风琴行 —— header 常显源名 + 本源主张(ipradar 判定徽章 / abuse 色阶分数),
+// 对比层即默认视图:全部收起,唯一例外是出错源恒展开(错误不是情报,得让人看见)。
+// L3 展开体:ipradar = geo 行 + 威胁类型 chips + 命中清单(零命中 → N 组分类 · 0 命中);
+// abuse 卡体不变。N 源线性可扩:主张语义在各源 claimsOf,展示经 ConsensusBadge 共用。
 import { useState } from "react";
 import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { SourceSection, Settings } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
 import type { AbuseSection } from "../sources/abuseipdb";
-import { VERDICT_STYLE, scoreTone, scoreTextTone, TECH_LABEL } from "./badges";
+import { VERDICT_STYLE, scoreTone, scoreTextTone, TECH_LABEL, ConsensusBadge } from "./badges";
+import { consensusOf } from "./consensus";
 import { useI18n } from "../i18n";
 
 function abuseOf(sec: SourceSection): AbuseSection | undefined {
@@ -25,125 +26,58 @@ function errorText(code: number | undefined, message: string, retryAfter: number
   return message;
 }
 
-/** AbuseIPDB 分数 → 威胁语义(仅用于手风琴默认展开判定,与 scoreTone 色阶同带)。 */
-function abuseThreat(a: AbuseSection | undefined): "malicious" | "suspicious" | undefined {
-  if (!a) return undefined;
-  if (a.score >= 60) return "malicious";
-  if (a.score >= 25) return "suspicious";
-  return undefined;
-}
-
-/** 默认展开集:有威胁的源 + 出错的源(错误永不折叠);全干净展开第一个 ok 源(优先分数卡)。 */
-function defaultOpen(sections: SourceSection[], d: LookupResult | undefined): Set<string> {
-  const open = new Set<string>();
-  const okIds: string[] = [];
-  let threatened = false;
-  for (const s of sections) {
-    if (s.status === "error") open.add(s.sourceId);
-    if (s.status !== "ok") continue;
-    okIds.push(s.sourceId);
-    const v =
-      s.sourceId === "ipradar" ? d?.threat?.verdict : abuseThreat(abuseOf(s));
-    if (v === "malicious" || v === "suspicious") {
-      open.add(s.sourceId);
-      threatened = true;
-    }
-  }
-  if (!threatened) {
-    const first = okIds.find(id => id === "abuseipdb") ?? okIds[0];
-    if (first) open.add(first);
-  }
-  return open;
-}
-
-/** 信息 chip:微字标 + mono 值,有值才渲染。 */
-function InfoChip({ k, v }: { k: string; v: string }) {
-  return (
-    <span className="inline-flex max-w-full items-baseline gap-1.5 rounded bg-zinc-800/70 px-1.5 py-0.5">
-      <span className={`${TECH_LABEL} shrink-0`}>{k}</span>
-      <span className="min-w-0 truncate font-mono text-[11px] text-zinc-300" title={v}>{v}</span>
-    </span>
-  );
-}
-
-function SummaryCard({ ip, d }: { ip: string; d: LookupResult | undefined }) {
+function IpradarBody({ d }: { d: LookupResult }) {
   const { t } = useI18n();
-  const verdict = d?.threat?.verdict;
-  const city = d?.city?.value && d.city.value !== "N/A" ? d.city.value : undefined;
-  const cityZh = d?.city_zh ?? undefined;
-  const geo = [d?.country?.value, city ? `${city}${cityZh ? `(${cityZh})` : ""}` : undefined]
+  const city = d.city?.value && d.city.value !== "N/A" ? d.city.value : undefined;
+  const cityZh = d.city_zh ?? undefined;
+  const geo = [d.country?.value, city ? `${city}${cityZh ? `(${cityZh})` : ""}` : undefined]
     .filter(Boolean)
     .join("·");
-  const gps = d?.location ? `${d.location.lat.toFixed(2)},${d.location.lon.toFixed(2)}` : undefined;
-  const chips: Array<[string, string]> = [
-    [t("column.country"), geo],
-    ["ASN", d?.asn?.value ?? undefined],
-    [t("column.operator"), d?.as_name?.value ?? undefined],
-    [t("ipDetail.range"), d?.ip_range?.value ?? undefined],
-    ["GPS", gps],
-  ].filter((c): c is [string, string] => Boolean(c[1]));
+  const gps = d.location ? `${d.location.lat.toFixed(2)},${d.location.lon.toFixed(2)}` : undefined;
+  const entries = Object.entries(d.classifications ?? {})
+    .filter(([, c]) => c.detected)
+    .sort((a, b) => b[1].confidence - a[1].confidence);
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-800">
-      <div className="flex items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/60 px-3 py-2">
-        <h2 className="min-w-0 truncate font-mono text-xl tracking-tight text-zinc-100" title={ip}>{ip}</h2>
-        {d?.is_reserved ? (
-          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE.reserved}`}>
-            {t("verdict.reserved")}
-          </span>
-        ) : verdict ? (
-          <span className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}>
-            {t(`verdict.${verdict}`)}
-            {(verdict === "malicious" || verdict === "suspicious") && (
-              <span className="font-mono text-[10px] opacity-80">{d.threat!.confidence}</span>
-            )}
-          </span>
-        ) : null}
+    <div>
+      <div className="divide-y divide-zinc-800/60">
+        <Row label={t("column.country")} value={geo || undefined} />
+        <Row label="ASN" value={d.asn?.value} />
+        <Row label={t("column.operator")} value={d.as_name?.value} />
+        <Row label={t("ipDetail.range")} value={d.ip_range?.value} />
+        <Row label="GPS" value={gps} />
       </div>
-      {(d?.threat?.types?.length ?? 0) > 0 && (
-        <div className="flex flex-wrap gap-1 border-b border-zinc-800 px-3 py-1.5">
-          {d!.threat!.types.map(type => (
+      {(d.threat?.types?.length ?? 0) > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {d.threat!.types!.map(type => (
             <span key={type} className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300">
               {type}
             </span>
           ))}
         </div>
       )}
-      {chips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-3 py-2">
-          {chips.map(([k, v]) => (
-            <InfoChip key={k} k={k} v={v} />
+      {entries.length === 0 ? (
+        <p className="mt-2 text-xs text-zinc-500">
+          {t("ipDetail.noHits", { n: Object.keys(d.classifications ?? {}).length })}
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {entries.map(([type, c]) => (
+            <li key={type} className="flex items-center gap-2 text-xs">
+              <span className="font-mono text-zinc-300">{type}</span>
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
+                {t(`verdict.${c.verdict}`)}
+              </span>
+              <span className="font-mono text-[10px] text-zinc-500">{c.confidence}</span>
+              {c.malware_names.length > 0 && (
+                <span className="truncate text-[10px] text-zinc-600" title={c.malware_names.join(", ")}>
+                  {c.malware_names.join(", ")}
+                </span>
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
-  );
-}
-
-function IpradarBody({ d }: { d: LookupResult }) {
-  const { t } = useI18n();
-  const entries = Object.entries(d.classifications ?? {})
-    .filter(([, c]) => c.detected)
-    .sort((a, b) => b[1].confidence - a[1].confidence);
-  if (entries.length === 0) {
-    return <p className="text-xs text-zinc-500">-</p>;
-  }
-  return (
-    <ul className="space-y-1.5">
-      {entries.map(([type, c]) => (
-        <li key={type} className="flex items-center gap-2 text-xs">
-          <span className="font-mono text-zinc-300">{type}</span>
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
-            {t(`verdict.${c.verdict}`)}
-          </span>
-          <span className="font-mono text-[10px] text-zinc-500">{c.confidence}</span>
-          {c.malware_names.length > 0 && (
-            <span className="truncate text-[10px] text-zinc-600" title={c.malware_names.join(", ")}>
-              {c.malware_names.join(", ")}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -242,10 +176,11 @@ export function ResultDetail({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 p-4 pb-3">
-        <SummaryCard ip={ip} d={d} />
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/60 px-4 py-2.5">
+        <h2 className="min-w-0 truncate font-mono text-xl tracking-tight text-zinc-100" title={ip}>{ip}</h2>
+        <ConsensusBadge consensus={consensusOf(sections)} t={t} />
       </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4 pt-0">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
         {sections.map(sec => {
           if (sec.status === "warming") return null; // App 顶部 warming 横幅已覆盖
           if (sec.status === "ok" && sec.sourceId === "ipradar") {
@@ -254,9 +189,12 @@ export function ResultDetail({
               <SourceRow
                 key={rowKey(sec.sourceId)}
                 title={t("src.ipradar")}
-                defaultOpen={defaultOpen(sections, d).has(sec.sourceId)}
                 badge={
-                  verdict ? (
+                  d?.is_reserved ? (
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE.reserved}`}>
+                      {t("verdict.reserved")}
+                    </span>
+                  ) : verdict ? (
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}>
                       {t(`verdict.${verdict}`)}
                     </span>
@@ -274,7 +212,6 @@ export function ResultDetail({
               <SourceRow
                 key={rowKey(sec.sourceId)}
                 title={t("src.abuseipdb")}
-                defaultOpen={defaultOpen(sections, d).has(sec.sourceId)}
                 badge={<span className={`font-mono text-xs font-semibold ${scoreTextTone(a.score)}`}>{a.score}/100</span>}
               >
                 <AbuseBody a={a} />
@@ -306,6 +243,7 @@ export function ResultDetail({
                 key={rowKey(sec.sourceId)}
                 title={t(`src.${sec.sourceId}`)}
                 errorTone
+                defaultOpen
                 badge={<span className="text-[10px] uppercase text-red-400/80">{t("src.error")}</span>}
               >
                 <p className="text-xs text-red-400">
