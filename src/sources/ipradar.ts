@@ -3,7 +3,7 @@
 // 鉴权:有 key 则带 Authorization: Bearer;无 key 照发(旧版 server 放行,新版 401 由 UI 引导)。
 // warming(503 + error.code==="warming")只透传 code,重发轮询归 UI 层 —— 源保持无状态。
 import { fetch as tf } from "@tauri-apps/plugin-http";
-import type { QuerySource, SourceSection, Settings } from "./_types";
+import type { QuerySource, SourceSection, Settings, VerdictCode } from "./_types";
 
 // 类型精简自 server frontend/src/api.ts,字段语义一致
 export interface LookupResult {
@@ -28,8 +28,21 @@ async function parseErr(r: Response): Promise<SourceSection> {
   return errSection(r.status, body?.error?.code, body?.error?.message ?? r.statusText, body?.error?.retry_after);
 }
 
+const VERDICT_CODES: readonly VerdictCode[] = ["malicious", "suspicious", "benign"];
+
 export const ipradarSource: QuerySource = {
   id: "ipradar", label: "IP Radar",
+  claimsOf(sec) {
+    if (sec.status !== "ok") return undefined;
+    const d = sec.data as LookupResult;
+    const v = d.threat?.verdict;
+    const code = VERDICT_CODES.includes(v as VerdictCode) ? (v as VerdictCode) : undefined;
+    return {
+      verdict: code ? { code, value: d.threat?.confidence } : undefined,
+      country: d.country?.value?.trim().toUpperCase(),
+      reserved: !!d.is_reserved,
+    };
+  },
   async query(ip, s) {
     const base = s.serverUrl.replace(/\/+$/, "");
     const r = await tf(`${base}/api/lookup/${ip}`, {

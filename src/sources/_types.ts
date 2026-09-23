@@ -31,10 +31,22 @@ export interface Settings {
   autostart: boolean;
 }
 
+// 判定主张(v0.1.7 共识设计):每源对一 IP 自报结论,视图层据此做跨源等权对比。
+// AbuseIPDB 语义:分数>0 即恶意主张(分数=程度),0=弃权 —— 无人报告≠良性。
+export type VerdictCode = "malicious" | "suspicious" | "benign";
+
+export interface SourceClaims {
+  verdict?: { code: VerdictCode; value?: number }; // value = 源原生刻度(ipradar σ / abuse 分数),不归一
+  country?: string;   // 大写 ISO-2,可比较
+  reserved?: boolean;
+}
+
 export interface QuerySource {
   id: string;
   label: string;
   maxConcurrency?: number;
   query(ip: string, s: Settings): Promise<SourceSection>;
   queryMany?(ips: string[], s: Settings): AsyncIterable<{ ip: string; section: SourceSection }>;
+  // 非 ok section 一律 undefined(由各源自查);未实现 = 不参与共识,不炸视图层
+  claimsOf?(section: SourceSection): SourceClaims | undefined;
 }

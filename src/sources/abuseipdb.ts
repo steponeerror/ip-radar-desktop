@@ -19,6 +19,15 @@ export const abuseipdbSource: QuerySource = {
   id: "abuseipdb",
   label: "AbuseIPDB",
   maxConcurrency: 5,
+  claimsOf(sec) {
+    if (sec.status !== "ok") return undefined;
+    const a = sec.data as AbuseSection;
+    return {
+      // 分数>0 即恶意主张,分数=程度;0=弃权(无人报告≠良性)
+      verdict: a.score > 0 ? { code: "malicious", value: a.score } : undefined,
+      country: a.countryCode?.toUpperCase(),
+    };
+  },
   async query(ip, s) {
     if (!s.abuseipdbKey) return { sourceId: "abuseipdb", status: "needs-key" };
     const url = `https://api.abuseipdb.com/api/v2/check?ipAddress=${ip}&maxAgeInDays=90`;
