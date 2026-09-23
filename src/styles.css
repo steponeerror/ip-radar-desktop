@@ -100,7 +100,7 @@ body {
   }
 }
 .row-in {
-  animation: row-in 0.2s ease-out backwards;
+  animation: row-in 0.25s ease-out backwards;
 }
 
 /* 暗色工具窗打磨:细滚动条 + 安静选区色(zinc 基调) */
