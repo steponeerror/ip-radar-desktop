@@ -1,16 +1,10 @@
-// 多 IP 左栏列表(双栏窄列):双行行 = 首行 mono IP + verdict 徽章,次行国家 · 运营商小字。
-// 行徽章 = ipradar 源 fused verdict(唯一融合语义);源缺/禁用/错误 → "-"。
+// 多 IP 左栏列表(双栏窄列):L1 扫描层 —— 首行 mono IP + 共识徽章,次行仅多源一致的国家。
+// 源细节零泄漏:判定走 consensus.ts(跨源等权),运营商/abuse 分数等单源数据在 L2/L3。
 // 选中行 bg-zinc-800/60(双栏 master 状态);已查询 0 结果 → 内部"无结果"空态。
 import type { SourceSection } from "../sources/_types";
-import type { LookupResult } from "../sources/ipradar";
-import type { AbuseSection } from "../sources/abuseipdb";
-import { VERDICT_STYLE, scoreTextTone } from "./badges";
+import { consensusOf, agreedCountry } from "./consensus";
+import { ConsensusBadge } from "./badges";
 import { useI18n } from "../i18n";
-
-export function ipradarOf(sections: SourceSection[]): LookupResult | undefined {
-  const sec = sections.find(s => s.sourceId === "ipradar" && s.status === "ok");
-  return sec ? (sec.data as LookupResult) : undefined;
-}
 
 export function ResultList({
   results,
@@ -34,11 +28,7 @@ export function ResultList({
     <div className="overflow-y-auto">
       {ips.map(ip => {
         const secs = results.get(ip)!;
-        const d = ipradarOf(secs);
-        const ab = secs.find(s => s.sourceId === "abuseipdb" && s.status === "ok")?.data as
-          | AbuseSection
-          | undefined;
-        const verdict = d?.threat?.verdict;
+        const country = agreedCountry(secs);
         const selected = ip === selectedIp;
         return (
           <button
@@ -51,26 +41,11 @@ export function ResultList({
           >
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate font-mono text-sm text-zinc-200">{ip}</span>
-              {verdict ? (
-                <span
-                  className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}
-                >
-                  {t(`verdict.${verdict}`)}
-                </span>
-              ) : (
-                <span className="shrink-0 text-[11px] text-zinc-700">-</span>
-              )}
+              <ConsensusBadge consensus={consensusOf(secs)} t={t} />
             </span>
-            <span className="flex items-center justify-between gap-2">
-              <span className="min-w-0 truncate text-[10px] text-zinc-500">
-                {d?.country?.value ?? "-"} · {d?.as_name?.value ?? "-"}
-              </span>
-              {ab && (
-                <span className={`shrink-0 font-mono text-[10px] font-semibold ${scoreTextTone(ab.score)}`}>
-                  {ab.score}
-                </span>
-              )}
-            </span>
+            {country && (
+              <span className="min-w-0 truncate font-mono text-[10px] text-zinc-500">{country}</span>
+            )}
           </button>
         );
       })}
