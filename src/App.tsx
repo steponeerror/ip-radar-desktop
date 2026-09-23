@@ -17,7 +17,7 @@ import { nextPollDelay } from "./warming";
 import { ResultList } from "./components/ResultList";
 import { ResultDetail } from "./components/ResultDetail";
 import { SettingsPage } from "./components/SettingsPage";
-import { Gear, Minus, X, Moon, Sun } from "@phosphor-icons/react";
+import { CircleNotch, Gear, Minus, X, Moon, Sun } from "@phosphor-icons/react";
 
 type View = "main" | "settings";
 
@@ -292,7 +292,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     <div className="dot-grid flex h-screen w-full flex-col overflow-hidden rounded-xl bg-zinc-950 text-zinc-100">
       <header
         data-tauri-drag-region
-        className="flex items-center justify-between border-b border-zinc-800 px-4 py-2"
+        className="relative flex items-center justify-between border-b border-zinc-800 px-4 py-2"
       >
         <span data-tauri-drag-region className={`${TECH_LABEL} select-none`}>
           {t("app.title")}
@@ -330,6 +330,8 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
             <Gear size={16} />
           </button>
         </div>
+        {/* 查询中:header 底缘 2px 进度滑条(绝对定位,压在 border-b 上) */}
+        {querying && <div className="query-progress" aria-hidden="true" />}
       </header>
 
       <main key={view} className="fade-in min-h-0 flex-1 overflow-hidden">
@@ -354,9 +356,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
               />
               <button
                 onClick={submitInput}
-                className="shrink-0 rounded-md bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950 transition hover:scale-[1.02] active:scale-[0.98]"
+                aria-label={t("query.go")}
+                aria-busy={querying}
+                className={`shrink-0 rounded-md bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950 transition hover:scale-[1.02] active:scale-[0.98] ${
+                  querying ? "pointer-events-none" : ""
+                }`}
               >
-                {t("query.go")}
+                {querying ? <CircleNotch size={14} className="animate-spin" /> : t("query.go")}
               </button>
             </div>
             {noIpHint && (
@@ -382,7 +388,11 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
 
             {/* 双栏:左列表 / 右详情 */}
             <div className="flex min-h-0 flex-1">
-              <div className="w-72 shrink-0 overflow-y-auto border-r border-zinc-800">
+              <div
+                className={`w-72 shrink-0 overflow-y-auto border-r border-zinc-800 transition-opacity duration-150 ${
+                  querying && results.size > 0 ? "opacity-50" : ""
+                }`}
+              >
                 {showSkeleton ? (
                   <ListSkeleton label={t("query.lookingUp")} />
                 ) : results.size === 0 ? (

@@ -175,7 +175,7 @@ export function ResultDetail({
   const rowKey = (id: string) => `${ip}:${id}`;
 
   return (
-    <div className="flex h-full flex-col">
+    <div key={ip} className="fade-in flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/60 px-4 py-2.5">
         <h2 className="min-w-0 truncate font-mono text-xl tracking-tight text-zinc-100" title={ip}>{ip}</h2>
         <ConsensusBadge consensus={consensusOf(sections)} t={t} />

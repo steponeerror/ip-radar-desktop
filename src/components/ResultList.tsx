@@ -26,7 +26,7 @@ export function ResultList({
   }
   return (
     <div className="overflow-y-auto">
-      {ips.map(ip => {
+      {ips.map((ip, i) => {
         const secs = results.get(ip)!;
         const country = agreedCountry(secs);
         const selected = ip === selectedIp;
@@ -35,7 +35,8 @@ export function ResultList({
             key={ip}
             onClick={() => onSelect(ip)}
             aria-current={selected ? "true" : undefined}
-            className={`flex w-full flex-col gap-0.5 border-b border-zinc-800/60 px-4 py-2.5 text-left transition-colors hover:bg-zinc-900 focus-visible:bg-zinc-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-zinc-700 active:bg-zinc-800/70 ${
+            style={{ animationDelay: `${Math.min(i * 0.02, 0.4)}s` }}
+            className={`row-in flex w-full flex-col gap-0.5 border-b border-zinc-800/60 px-4 py-2.5 text-left transition-colors hover:bg-zinc-900 focus-visible:bg-zinc-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-zinc-700 active:bg-zinc-800/70 ${
               selected ? "bg-zinc-800/60" : ""
             }`}
           >

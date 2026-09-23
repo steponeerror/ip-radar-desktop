@@ -68,6 +68,41 @@ body {
   animation: fade-in 0.2s ease-out;
 }
 
+/* 查询中进度:header 底缘 2px emerald 滑条(30% 宽,沿轨道单程平移循环) */
+@keyframes query-progress {
+  from {
+    left: -30%;
+  }
+  to {
+    left: 100%;
+  }
+}
+.query-progress {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  width: 30%;
+  border-radius: 9999px;
+  background: var(--color-emerald-500);
+  animation: query-progress 1.2s ease-in-out infinite;
+}
+
+/* 结果行入场(渐进流入配套):4px 上浮 + 淡入;backwards 让延迟行在等待期保持隐藏 */
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.row-in {
+  animation: row-in 0.2s ease-out backwards;
+}
+
 /* 暗色工具窗打磨:细滚动条 + 安静选区色(zinc 基调) */
 * {
   scrollbar-width: thin;
@@ -93,7 +128,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
   .animate-spin,
-  .fade-in {
+  .fade-in,
+  .query-progress,
+  .row-in {
     animation: none;
   }
 }
