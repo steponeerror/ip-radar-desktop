@@ -88,3 +88,50 @@ describe("runSources 调度器", () => {
     expect(out.get("3.3.3.3")![0].error?.message).toBe("mid-stream boom");
   });
 });
+
+describe("runSources onUpdate 渐进流入(v0.1.9 Task 1)", () => {
+  test("① 流式源逐行到达时 onUpdate 被调用,快照逐步变大", async () => {
+    const src: QuerySource = {
+      id: "s", label: "S",
+      query: async () => { throw new Error("unreachable"); },
+      async *queryMany(ips) {
+        for (const ip of ips) {
+          yield { ip, section: section("s", `row-${ip}`) };
+          await new Promise(r => setTimeout(r, 0)); // 行间宏任务隔开,快照边界确定
+        }
+      },
+    };
+    const snapshots: Map<string, SourceSection[]>[] = [];
+    const countsAtEmit: number[] = [];
+    const total = (m: Map<string, SourceSection[]>) => [...m.values()].reduce((n, a) => n + a.length, 0);
+    await runSources(["1.1.1.1", "2.2.2.2", "3.3.3.3"], [src], S, m => {
+      snapshots.push(m);
+      countsAtEmit.push(total(m)); // 回调时刻测量(内层数组共享,事后读会看到后续追加)
+    });
+    expect(snapshots.length).toBe(3);
+    expect(countsAtEmit).toEqual([1, 2, 3]); // 每行到达时订阅者看到的快照逐步变大
+  });
+
+  test("② 快照是外层克隆:完成后改返回 map 不影响已传出的快照", async () => {
+    const src: QuerySource = { id: "c", label: "C", query: async ip => section("c", ip) };
+    const snapshots: Map<string, SourceSection[]>[] = [];
+    const out = await runSources(["1.1.1.1"], [src], S, m => snapshots.push(m));
+    expect(snapshots.length).toBe(1);
+    expect(snapshots[0]).not.toBe(out);        // 外层 Map 已克隆(React 重渲染的触发条件)
+    out.set("9.9.9.9", []);
+    expect(snapshots[0].has("9.9.9.9")).toBe(false);
+    expect([...snapshots[0].keys()]).toEqual(["1.1.1.1"]);
+  });
+
+  test("③ query 抛错转 error section 同样触发 onUpdate", async () => {
+    const src: QuerySource = {
+      id: "e", label: "E",
+      query: async () => { throw new Error("boom"); },
+    };
+    const snapshots: Map<string, SourceSection[]>[] = [];
+    await runSources(["1.1.1.1", "2.2.2.2"], [src], S, m => snapshots.push(m));
+    expect(snapshots.length).toBe(2);          // 每 IP 一个 error 段,逐个触发
+    const last = snapshots[snapshots.length - 1];
+    expect([...last.values()].flat().every(sec => sec.status === "error")).toBe(true);
+  });
+});

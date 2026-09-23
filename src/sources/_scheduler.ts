@@ -9,8 +9,13 @@ export async function runSources(
   ips: string[],
   sources: QuerySource[],
   s: Settings,
+  onUpdate?: (snapshot: Map<string, SourceSection[]>) => void,
 ): Promise<Map<string, SourceSection[]>> {
   const out = new Map(ips.map(ip => [ip, [] as SourceSection[]]));
+  // ponytail: 直推不节流 —— ≤100 行流式每 section 一次 setState 可承受;
+  // 行数再大时再加 rAF 批处理。外层克隆触发 React 重渲染,内层数组共享
+  // (后来者追加对旧快照可见,读取时已是最新,无害)。
+  const emit = () => onUpdate?.(new Map(out));
   const enabled = sources.filter(src => s.sourceEnabled[src.id] !== false);
   await Promise.all(enabled.map(async src => {
     const errSec = (e: unknown): SourceSection => ({
@@ -24,11 +29,12 @@ export async function runSources(
       try {
         for await (const { ip, section } of src.queryMany(ips, s)) {
           out.get(ip)?.push(section);
+          emit();
           seen.add(ip);
         }
       } catch (e) {
         for (const ip of ips) {
-          if (!seen.has(ip)) out.get(ip)?.push(errSec(e));
+          if (!seen.has(ip)) { out.get(ip)?.push(errSec(e)); emit(); }
         }
       }
       return;
@@ -40,8 +46,10 @@ export async function runSources(
         const ip = ips[i++];
         try {
           out.get(ip)?.push(await src.query(ip, s));
+          emit();
         } catch (e) {
           out.get(ip)?.push(errSec(e));
+          emit();
         }
       }
     }));

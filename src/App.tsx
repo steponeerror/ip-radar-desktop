@@ -142,12 +142,20 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       lastIpsRef.current = ips;
       lastTruncRef.current = trunc;
       setTruncated(trunc ?? null);
+      // 渐进流入:开始即选中首 IP,右栏与左栏同步生长(v0.1.9);选中后
+      // 用户仍可随时点击左栏改选。
+      setSelectedIp(ips[0]);
       setQuerying(true);
       // 纵深防御(C1):调度器已把单源异常转 error section,这里兑底任何漏网异常,
       // 保证绝不永久停在 querying 态
       let map: Map<string, SourceSection[]>;
       try {
-        map = await runSources(ips, getSources(), settingsRef.current);
+        // 每个 section 落地即推送快照(流式行/单 IP 完成/error 段),
+        // 陈旧代际丢弃 —— 新查询已取代时不再消费旧快照
+        map = await runSources(ips, getSources(), settingsRef.current, snapshot => {
+          if (epoch !== queryEpochRef.current) return;
+          setResults(snapshot);
+        });
       } catch (e) {
         if (epoch !== queryEpochRef.current) return;
         const msg = String((e as Error)?.message ?? e);
@@ -159,8 +167,6 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       if (epoch !== queryEpochRef.current) return;   // 被更新查询取代:丢弃陈旧结果
       setResults(map);
       setNoIpHint(false);
-      // 单/多 IP 统一:首项即选中,右栏永不空(GC#3)
-      setSelectedIp(ips[0]);
       setQuerying(false);
       if (anyWarming(map)) startWarmingRef.current();
     },
