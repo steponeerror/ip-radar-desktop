@@ -15,6 +15,15 @@ const DEFAULT_HOTKEY: &str = "CmdOrCtrl+Alt+I";
 /// set_hotkey 先注册新键,成功后才注销旧键 —— 新键失败时旧键原样存活。
 struct HotkeyState(Mutex<Option<String>>);
 
+/// 启动几何守卫:window-state 插件可能还原出最小化残骸几何(实测
+/// 215x26 @ -32000 存盘,215=144dpi 下标题条 stub)——低于 conf 的 min 尺寸或
+/// 屏外坐标 → 重置默认尺寸并居中。纯判定函数抽出供测试。
+fn geometry_is_broken(logical: (f64, f64), pos: (i32, i32)) -> bool {
+    const MIN_W: f64 = 640.0; // 与 tauri.conf.json minWidth/minHeight 同步
+    const MIN_H: f64 = 400.0;
+    logical.0 < MIN_W || logical.1 < MIN_H || pos.0 < -10000 || pos.1 < -10000
+}
+
 /// Show + focus the main window. Hotkey, tray and second-instance all land here.
 /// unminimize 先行:show() 只调 SW_SHOW,不解除 iconic 状态 —— 配合 skipTaskbar
 /// 会让最小化后的窗口在屏幕上零痕迹,热键永远唤不回(v0.1.5 Windows 实测)。
@@ -197,6 +206,21 @@ fn main() {
                 })
                 .build(app)?;
 
+            // ── 启动几何守卫:还原出残骸几何(最小化存盘)→ 重置默认并居中 ──
+            {
+                let w = app.get_webview_window("main").expect("main window missing");
+                let scale = w.scale_factor().unwrap_or(1.0);
+                let size = w.inner_size().map(|s| {
+                    (s.width as f64 / scale, s.height as f64 / scale)
+                }).unwrap_or((0.0, 0.0));
+                let pos = w.outer_position().map(|p| (p.x, p.y)).unwrap_or((0, 0));
+                if geometry_is_broken(size, pos) {
+                    eprintln!("window-state restored broken geometry {size:?} @ {pos:?}; resetting");
+                    let _ = w.set_size(tauri::LogicalSize::new(780.0, 500.0));
+                    let _ = w.center();
+                }
+            }
+
             // ── Startup hotkey: persisted value, default on failure.
             // register() (no per-shortcut handler) → builder's with_handler
             // fires exactly once; on_shortcut(+handler) would double-fire it.
@@ -245,12 +269,22 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use serde_json::Value;
 
     /// RC1 回归钉(v0.1.3 Windows 全灭):平台覆盖的 windows 数组会被
     /// RFC7396 merge-patch 【整体替换】,覆盖条目必须携带主配置窗口的全量字段,
     /// 否则丢失字段全部回退默认值(decorated:true / visible:true / 800×600 /
     /// 任务栏可见)。此测试钉住覆盖完整性。
+    #[test]
+    fn broken_geometry_detection() {
+        assert!(geometry_is_broken((215.0, 26.0), (-32000, -32000))); // 实测投毒值
+        assert!(geometry_is_broken((300.0, 300.0), (100, 100))); // 低于 min
+        assert!(geometry_is_broken((800.0, 500.0), (-21333, 100))); // 屏外
+        assert!(!geometry_is_broken((640.0, 400.0), (0, 0))); // 边界=min 合法
+        assert!(!geometry_is_broken((780.0, 500.0), (485, 275))); // 正常
+    }
+
     #[test]
     fn windows_overlay_must_cover_base_window_config() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
