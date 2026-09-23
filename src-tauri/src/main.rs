@@ -16,8 +16,11 @@ const DEFAULT_HOTKEY: &str = "CmdOrCtrl+Alt+I";
 struct HotkeyState(Mutex<Option<String>>);
 
 /// Show + focus the main window. Hotkey, tray and second-instance all land here.
+/// unminimize 先行:show() 只调 SW_SHOW,不解除 iconic 状态 —— 配合 skipTaskbar
+/// 会让最小化后的窗口在屏幕上零痕迹,热键永远唤不回(v0.1.5 Windows 实测)。
 fn show(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
     }
