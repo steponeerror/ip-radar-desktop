@@ -1,8 +1,16 @@
 # IP Radar Desktop
 
+<p align="center">
+
+[![Live Demo](https://img.shields.io/badge/%F0%9F%93%A1_Live_Demo-ipradar.huxiao0207.dpdns.org-FF6B35?style=for-the-badge)](https://ipradar.huxiao0207.dpdns.org)
+
+</p>
+
 [简体中文](#简体中文) | [English](#english)
 
-<!-- screenshot -->
+<p align="center">
+  <img src="assets/hero.png" alt="IP Radar Desktop — multi-IP lookup with consensus badges">
+</p>
 
 ## 简体中文
 
@@ -13,6 +21,10 @@
 - **源可插拔** —— 新增查询源 = 在 `src/sources/` 加一个文件,零注册代码
 - **多 IP 批量** —— 从日志/告警里复制的一串 IP 一次全查,紧凑列表点击展开详情,verdict 徽章一目了然
 - **多平台** —— Linux / macOS / Windows 三平台构建,轻量(Tauri 2)
+
+<p align="center">
+  <img src="assets/detail.png" alt="Expanded IP detail — source cards with evidence">
+</p>
 
 ### 安装
 
@@ -56,6 +68,10 @@ npm run tauri build
 - **Pluggable sources** — adding a query source is dropping one file into `src/sources/`, zero registration code
 - **Batch lookups** — a list of IPs copied from logs or alerts is queried in one shot; compact rows expand into full detail views with verdict badges
 - **Cross-platform** — Linux / macOS / Windows builds, lightweight (Tauri 2)
+
+<p align="center">
+  <img src="assets/detail.png" alt="Expanded IP detail — source cards with evidence">
+</p>
 
 ### Install
 
