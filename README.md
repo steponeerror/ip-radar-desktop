@@ -1,9 +1,7 @@
 # IP Radar Desktop
 
 <p align="center">
-
-[![Live Demo](https://img.shields.io/badge/%F0%9F%93%A1_Live_Demo-ipradar.huxiao0207.dpdns.org-FF6B35?style=for-the-badge)](https://ipradar.huxiao0207.dpdns.org)
-
+  <a href="https://ipradar.huxiao0207.dpdns.org"><img src="https://img.shields.io/badge/%F0%9F%93%A1_Live_Demo-ipradar.huxiao0207.dpdns.org-FF6B35?style=for-the-badge" alt="Live Demo"></a>
 </p>
 
 [简体中文](#简体中文) | [English](#english)
