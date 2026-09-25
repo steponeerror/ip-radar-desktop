@@ -31,6 +31,13 @@ export function scoreTextTone(score: number): string {
   return "text-emerald-300";
 }
 
+/** MergedField 置信度文字色阶(server threatDisplay.ts confTextColor 同款):≥70 绿/30–69 琥珀/<30 红。 */
+export function confTone(conf: number): string {
+  if (conf >= 70) return "text-emerald-400";
+  if (conf >= 30) return "text-amber-400";
+  return "text-red-400";
+}
+
 /** 共识徽章(L1 列表行 / L2 身份条共用):纯展示,t 作 props 传入,判定语义在 consensus.ts。
  *  分歧不带数字;非良性共识携带最坏主张源的原生数值(σ 置信度 / abuse 分数)。 */
 export function ConsensusBadge({ consensus, t }: {

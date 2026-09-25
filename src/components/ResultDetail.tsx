@@ -8,7 +8,7 @@ import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { SourceSection, Settings } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
 import type { AbuseSection } from "../sources/abuseipdb";
-import { VERDICT_STYLE, scoreTone, scoreTextTone, TECH_LABEL, ConsensusBadge } from "./badges";
+import { VERDICT_STYLE, scoreTone, scoreTextTone, confTone, TECH_LABEL, ConsensusBadge } from "./badges";
 import { consensusOf } from "./consensus";
 import { useI18n } from "../i18n";
 
@@ -30,9 +30,6 @@ function IpradarBody({ d }: { d: LookupResult }) {
   const { t } = useI18n();
   const city = d.city?.value && d.city.value !== "N/A" ? d.city.value : undefined;
   const cityZh = d.city_zh ?? undefined;
-  const geo = [d.country?.value, city ? `${city}${cityZh ? `(${cityZh})` : ""}` : undefined]
-    .filter(Boolean)
-    .join("·");
   const gps = d.location ? `${d.location.lat.toFixed(2)},${d.location.lon.toFixed(2)}` : undefined;
   const entries = Object.entries(d.classifications ?? {})
     .filter(([, c]) => c.detected)
@@ -40,21 +37,27 @@ function IpradarBody({ d }: { d: LookupResult }) {
   return (
     <div>
       <div className="divide-y divide-zinc-800/60">
-        <Row label={t("column.country")} value={geo || undefined} />
-        <Row label="ASN" value={d.asn?.value} />
-        <Row label={t("column.operator")} value={d.as_name?.value} />
-        <Row label={t("ipDetail.range")} value={d.ip_range?.value} />
-        <Row label="GPS" value={gps} />
+        <Row label={t("column.country")} value={d.country?.value} conf={d.country?.confidence} />
+        {city && <Row label={t("column.city")} value={cityZh ? `${city}(${cityZh})` : city} conf={d.city?.confidence} />}
+        <Row label="ASN" value={d.asn?.value} conf={d.asn?.confidence} />
+        <Row label={t("column.operator")} value={d.as_name?.value} conf={d.as_name?.confidence} />
+        <Row label={t("ipDetail.range")} value={d.ip_range?.value} conf={d.ip_range?.confidence} />
+        <Row label="GPS" value={gps} title={d.location?.accuracy_radius ? `±${d.location.accuracy_radius} km` : undefined} />
       </div>
-      {(d.threat?.types?.length ?? 0) > 0 && (
+      {(d.threat?.types?.length ?? 0) > 0 || d.threat?.is_cdn ? (
         <div className="mt-2 flex flex-wrap gap-1">
-          {d.threat!.types!.map(type => (
+          {d.threat?.types?.map(type => (
             <span key={type} className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300">
               {type}
             </span>
           ))}
+          {d.threat?.is_cdn && (
+            <span key="cdn" className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300">
+              CDN
+            </span>
+          )}
         </div>
-      )}
+      ) : null}
       {entries.length === 0 ? (
         <p className="mt-2 text-xs text-zinc-500">
           {t("ipDetail.noHits", { n: Object.keys(d.classifications ?? {}).length })}
@@ -81,13 +84,19 @@ function IpradarBody({ d }: { d: LookupResult }) {
   );
 }
 
-/** 横排键值行(紧凑):label 左、mono 值右 truncate。 */
-function Row({ label, value }: { label: string; value: string | number | undefined | null }) {
+/** 横排键值行(紧凑):label 左、mono 值右 truncate;conf 为 MergedField 置信度裸数字(带色阶)。 */
+function Row({ label, value, conf, title }: {
+  label: string;
+  value: string | number | undefined | null;
+  conf?: number;
+  title?: string;
+}) {
   const shown = value === undefined || value === null || value === "" ? "-" : String(value);
   return (
-    <div className="flex items-baseline justify-between gap-3 py-0.5">
+    <div className="flex items-baseline justify-between gap-3 py-0.5" title={title}>
       <span className={TECH_LABEL}>{label}</span>
       <span className="min-w-0 truncate font-mono text-xs text-zinc-300" title={shown}>{shown}</span>
+      {conf != null && <span className={`ml-1 text-[10px] ${confTone(conf)}`}>{conf}</span>}
     </div>
   );
 }

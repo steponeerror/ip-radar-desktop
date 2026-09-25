@@ -8,8 +8,9 @@ import type { QuerySource, SourceSection, Settings, VerdictCode } from "./_types
 // 类型精简自 server frontend/src/api.ts,字段语义一致
 export interface LookupResult {
   ip: string; is_reserved?: boolean; error?: string;
-  country?: { value: string }; city?: { value: string }; city_zh?: string | null;
-  asn?: { value: number | string }; as_name?: { value: string }; ip_range?: { value: string };
+  country?: { value: string; confidence?: number }; city?: { value: string; confidence?: number }; city_zh?: string | null;
+  asn?: { value: number | string; confidence?: number }; as_name?: { value: string; confidence?: number };
+  ip_range?: { value: string; confidence?: number };
   threat?: { verdict: string; confidence: number; types: string[]; is_cdn: boolean };
   location?: { lat: number; lon: number; accuracy_radius?: number } | null;
   classifications?: Record<string, { verdict: string; detected: boolean; confidence: number; malware_names: string[] }>;
