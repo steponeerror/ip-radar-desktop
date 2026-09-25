@@ -197,6 +197,9 @@ export function ResultDetail({
                   ) : verdict ? (
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${VERDICT_STYLE[verdict] ?? VERDICT_STYLE.informational}`}>
                       {t(`verdict.${verdict}`)}
+                      {(verdict === "malicious" || verdict === "suspicious") && d?.threat?.confidence != null && (
+                        <span className="ml-1 font-mono text-[10px] opacity-80">{d.threat.confidence}</span>
+                      )}
                     </span>
                   ) : undefined
                 }
