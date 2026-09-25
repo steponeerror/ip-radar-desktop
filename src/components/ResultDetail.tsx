@@ -95,8 +95,10 @@ function Row({ label, value, conf, title }: {
   return (
     <div className="flex items-baseline justify-between gap-3 py-0.5" title={title}>
       <span className={TECH_LABEL}>{label}</span>
-      <span className="min-w-0 truncate font-mono text-xs text-zinc-300" title={shown}>{shown}</span>
-      {conf != null && <span className={`ml-1 text-[10px] ${confTone(conf)}`}>{conf}</span>}
+      <span className="flex min-w-0 items-baseline justify-end">
+        <span className="min-w-0 truncate font-mono text-xs text-zinc-300" title={shown}>{shown}</span>
+        {conf != null && <span className={`ml-1 text-[10px] ${confTone(conf)}`}>{conf}</span>}
+      </span>
     </div>
   );
 }
