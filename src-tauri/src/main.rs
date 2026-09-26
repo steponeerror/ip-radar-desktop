@@ -35,6 +35,90 @@ fn show(app: &tauri::AppHandle) {
     }
 }
 
+/// 前台窗口类名是否为终端(conhost = ConsoleWindowClass,Windows Terminal
+/// = CASCADIA_HOSTING_WINDOW_CLASS):终端里无选区的 Ctrl+C 是 SIGINT,会杀掉
+/// 前台进程,这类窗口宁可跳过模拟复制。纯函数不加 cfg,非 Windows 也能测。
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn is_console_class(class: &str) -> bool {
+    class == "ConsoleWindowClass" || class == "CASCADIA_HOSTING_WINDOW_CLASS"
+}
+
+/// Windows 划词捕获:向当前前台窗口模拟 Ctrl+C,轮询剪贴板取回选中文本。
+/// 每个守卫失败即返回 None(前端回退到查剪贴板旧文本路径)。
+#[cfg(target_os = "windows")]
+fn read_selection(app: &tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_C, VK_CONTROL,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow};
+
+    // 轮询参数:每 20ms 探一次剪贴板,总等待 ≤150ms。
+    const POLL_STEP_MS: u64 = 20;
+    const POLL_CAP_MS: u64 = 150;
+
+    // 守卫 1:前台是终端 → 模拟 Ctrl+C 会发 SIGINT 杀进程,宁可不捕获。
+    let fg = unsafe { GetForegroundWindow() };
+    if !fg.is_null() {
+        let mut buf = [0u16; 64];
+        let n = unsafe { GetClassNameW(fg, buf.as_mut_ptr(), buf.len() as i32) };
+        let class = String::from_utf16_lossy(&buf[..n.max(0) as usize]);
+        if is_console_class(&class) {
+            return None;
+        }
+    }
+
+    // 守卫 2(Q7):剪贴板当前非文本(图片/文件)→ 模拟复制会毁掉它,而我们
+    // 只有旧文本可恢复;空串是合法文本,照常走。
+    let saved = app.clipboard().read_text().ok()?;
+
+    // 模拟 Ctrl+C:四事件一次 SendInput;down 事件标志为 0(纯虚拟键码,
+    // 不带 SCANCODE/UNICODE/EXTENDEDKEY),up 事件带 KEYEVENTF_KEYUP。
+    let key = |vk: u16, up: u32| INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: vk,
+                wScan: 0,
+                dwFlags: up,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let events = [
+        key(VK_CONTROL, 0),
+        key(VK_C, 0),
+        key(VK_C, KEYEVENTF_KEYUP),
+        key(VK_CONTROL, KEYEVENTF_KEYUP),
+    ];
+    unsafe {
+        SendInput(
+            events.len() as u32,
+            events.as_ptr(),
+            std::mem::size_of::<INPUT>() as i32,
+        );
+    }
+
+    // 轮询:文本变了 → 取新值并恢复旧剪贴板(Q4);读到 Err = 其他进程
+    // 瞬时持锁,按未变继续轮;超时未变 → None(剪贴板没动过,无需恢复)。
+    for _ in 0..(POLL_CAP_MS / POLL_STEP_MS) {
+        std::thread::sleep(std::time::Duration::from_millis(POLL_STEP_MS));
+        if let Ok(cur) = app.clipboard().read_text() {
+            if cur != saved {
+                let _ = app.clipboard().write_text(&saved);
+                return Some(cur);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn read_selection(_app: &tauri::AppHandle) -> Option<String> {
+    None // 划词仅 Windows 实现;其他平台事件 payload 为 null,前端走剪贴板回退
+}
+
 #[tauri::command]
 fn hide_window(app: tauri::AppHandle) {
     // dev(含 WSLg 无托盘/无全局热键环境):隐藏后无入口唤回,直接 no-op;
@@ -149,8 +233,15 @@ fn main() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        show(app);
-                        let _ = app.emit("hotkey-triggered", ());
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            // 顺序硬约束:捕获先于 show() —— show 抢走焦点后,
+                            // 模拟的 Ctrl+C 就发给了本应用自己;阻塞至多
+                            // ~150ms,放后台线程以免卡热键分发。
+                            let selection = read_selection(&app);
+                            show(&app);
+                            let _ = app.emit("hotkey-triggered", selection);
+                        });
                     }
                 })
                 .build(),
@@ -283,6 +374,14 @@ mod tests {
         assert!(geometry_is_broken((800.0, 500.0), (-21333, 100))); // 屏外
         assert!(!geometry_is_broken((640.0, 400.0), (0, 0))); // 边界=min 合法
         assert!(!geometry_is_broken((780.0, 500.0), (485, 275))); // 正常
+    }
+
+    #[test]
+    fn console_class_detection() {
+        assert!(is_console_class("ConsoleWindowClass")); // conhost
+        assert!(is_console_class("CASCADIA_HOSTING_WINDOW_CLASS")); // Windows Terminal
+        assert!(!is_console_class("Chrome_WidgetWin_1")); // 普通应用窗口
+        assert!(!is_console_class("")); // GetClassNameW 失败(返回 0)→ 不拦截
     }
 
     #[test]
