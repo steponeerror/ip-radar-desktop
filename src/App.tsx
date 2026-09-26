@@ -1,5 +1,5 @@
 // 主 UI(双栏):常驻查询栏 → banners → 左列表(w-72)/右详情;settings 整窗覆盖态。
-// 唤起链路:Rust 快捷键 → emit("hotkey-triggered") → 读剪贴板 → extractIps → 分发查询。
+// 唤起链路:Rust 快捷键 → emit("hotkey-triggered") → 划词优先(仅 Windows 携带选区)→ 否则读剪贴板 → extractIps → 分发查询。
 // warming(503 code):轮询 /api/db-status(5s 起 ×2 至 30s 封顶),就绪后重发原查询。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -218,12 +218,17 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     [],
   );
 
-  // 快捷键唤起:emit 到达即读剪贴板一次(spec:不做持续监听)
+  // 快捷键唤起:划词优先(仅 Windows 后端携带选区;null = 无划词),否则读剪贴板一次(spec:不做持续监听)
   // disposed-flag:cleanup 先于 listen promise resolve 时立即反注册,防泄漏/StrictMode 双挂载重复分发
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    listen<string>("hotkey-triggered", () => {
+    listen<string | null>("hotkey-triggered", e => {
+      const sel = e.payload; // string | null
+      if (sel && extractIps(sel, settingsRef.current.maxIps).ips.length > 0) {
+        dispatch(sel);
+        return;
+      }
       readText()
         .then(text => dispatch(text ?? ""))
         .catch(() => dispatch(""));
