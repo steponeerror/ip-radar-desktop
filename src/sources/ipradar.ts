@@ -1,9 +1,15 @@
 // ipradar 源:自托管 server 的查询客户端。
 // 单 IP 走 GET /api/lookup/{ip}(与流式每行同构);多 IP 走 POST /api/query/stream(NDJSON)。
+// 单查经 invoke("http_get") 走 Rust 池化代理(复用热连接,划词热路径免 TLS 冷启动);流式仍走 plugin-http。
 // 鉴权:有 key 则带 Authorization: Bearer;无 key 照发(旧版 server 放行,新版 401 由 UI 引导)。
 // warming(503 + error.code==="warming")只透传 code,重发轮询归 UI 层 —— 源保持无状态。
 import { fetch as tf } from "@tauri-apps/plugin-http";
+import { invoke } from "@tauri-apps/api/core";
 import type { QuerySource, SourceSection, Settings, VerdictCode } from "./_types";
+
+// Rust 池化命令 http_get 的回复契约(src-tauri main.rs HttpReply):
+// 非 2xx 不 reject,status+body 原样透传;仅 reqwest 层错误(连接/超时)才 reject invoke
+interface HttpReply { status: number; body: string }
 
 // 类型精简自 server frontend/src/api.ts,字段语义一致
 export interface LookupResult {
@@ -29,6 +35,14 @@ async function parseErr(r: Response): Promise<SourceSection> {
   return errSection(r.status, body?.error?.code, body?.error?.message ?? r.statusText, body?.error?.retry_after);
 }
 
+// HttpReply 错误解析:信封键映射与 parseErr 一致(retry_after→retryAfter);
+// 非 JSON 错误体(HTML 网关页等)无 statusText 可用 → message 兜底 "HTTP {status}"
+function errFromReply(r: HttpReply): SourceSection {
+  let body: any = null;
+  try { body = JSON.parse(r.body); } catch { /* 非 JSON 错误体 */ }
+  return errSection(r.status, body?.error?.code, body?.error?.message ?? `HTTP ${r.status}`, body?.error?.retry_after);
+}
+
 const VERDICT_CODES: readonly VerdictCode[] = ["malicious", "suspicious", "benign"];
 
 export const ipradarSource: QuerySource = {
@@ -46,12 +60,14 @@ export const ipradarSource: QuerySource = {
   },
   async query(ip, s) {
     const base = s.serverUrl.replace(/\/+$/, "");
-    const r = await tf(`${base}/api/lookup/${ip}`, {
-      headers: authHeaders(s),
-      signal: AbortSignal.timeout(15_000),
+    // 池化 GET:15s 超时由 Rust 侧 CLIENT 兜底(此处无需 AbortSignal);非 2xx 不是
+    // invoke 错误 —— status+body 原样回,由 errFromReply 分支出错误段
+    const r = await invoke<HttpReply>("http_get", {
+      url: `${base}/api/lookup/${ip}`,
+      headers: authHeaders(s), // 无 key 时传空对象,Rust 端不构造 Authorization
     });
-    if (!r.ok) return parseErr(r);
-    return { sourceId: "ipradar", status: "ok", data: await r.json() };
+    if (r.status < 200 || r.status >= 300) return errFromReply(r);
+    return { sourceId: "ipradar", status: "ok", data: JSON.parse(r.body) };
   },
   async *queryMany(ips, s) {
     const base = s.serverUrl.replace(/\/+$/, "");

@@ -1,6 +1,8 @@
 import { describe, test, expect, vi, afterEach } from "vitest";
-vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
+vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() })); // queryMany 流式仍走 tf
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() })); // query 单查走池化命令
 import { fetch as tf } from "@tauri-apps/plugin-http";
+import { invoke } from "@tauri-apps/api/core";
 import { ipradarSource } from "../sources/ipradar";
 import { DEFAULT_SETTINGS } from "../settings";
 
@@ -12,21 +14,27 @@ afterEach(() => vi.useRealTimers());
 
 describe("ipradar 源", () => {
   test("单查 GET + Bearer", async () => {
-    (tf as any).mockResolvedValueOnce(json(200, okResult));
+    (invoke as any).mockResolvedValueOnce(reply(200, okResult));
     const sec = await ipradarSource.query("1.1.1.1", S);
-    expect((tf as any).mock.calls[0][0]).toBe("http://127.0.0.1:8000/api/lookup/1.1.1.1");
-    expect((tf as any).mock.calls[0][1].headers.Authorization).toBe("Bearer k1");
+    expect((invoke as any).mock.calls[0][0]).toBe("http_get");
+    expect((invoke as any).mock.calls[0][1]).toEqual({
+      url: "http://127.0.0.1:8000/api/lookup/1.1.1.1",
+      headers: { Authorization: "Bearer k1" },
+    });
     expect(sec).toEqual({ sourceId: "ipradar", status: "ok", data: okResult });
   });
 
-  test("无 key 照发(旧 server 兼容)", async () => {
-    (tf as any).mockResolvedValueOnce(json(200, okResult));
+  test("无 key 照发(旧 server 兼容;headers 原样传空对象)", async () => {
+    (invoke as any).mockResolvedValueOnce(reply(200, okResult));
     await ipradarSource.query("1.1.1.1", DEFAULT_SETTINGS);
-    expect((tf as any).mock.calls[0][1].headers.Authorization).toBeUndefined();
+    expect((invoke as any).mock.calls[0][1]).toEqual({
+      url: "http://127.0.0.1:8000/api/lookup/1.1.1.1",
+      headers: {},
+    });
   });
 
   test("401 → error.status 401(引导层识别)", async () => {
-    (tf as any).mockResolvedValueOnce(json(401, { error: { code: "", message: "unauthorized" } }));
+    (invoke as any).mockResolvedValueOnce(reply(401, { error: { code: "", message: "unauthorized" } }));
     const sec = await ipradarSource.query("1.1.1.1", S);
     expect(sec.status).toBe("error");
     expect(sec.error?.status).toBe(401);
@@ -62,11 +70,25 @@ describe("ipradar 源", () => {
   });
 
   test("错误信封透传 code/retry_after(warming 由 UI 层识别重发)", async () => {
-    (tf as any).mockResolvedValueOnce(json(503, { error: { code: "warming", message: "warming up", retry_after: 30 } }));
+    (invoke as any).mockResolvedValueOnce(reply(503, { error: { code: "warming", message: "warming up", retry_after: 30 } }));
     const sec = await ipradarSource.query("1.1.1.1", S);
     expect(sec.status).toBe("error");
     expect(sec.error?.code).toBe("warming");
+    expect(sec.error?.message).toBe("warming up");
     expect(sec.error?.retryAfter).toBe(30);
+  });
+
+  test("503 + 非 JSON 错误体(HTML 网关页)→ message 兜底 HTTP 503", async () => {
+    (invoke as any).mockResolvedValueOnce({ status: 503, body: "<html>Service Unavailable</html>" });
+    const sec = await ipradarSource.query("1.1.1.1", S);
+    expect(sec.status).toBe("error");
+    expect(sec.error?.status).toBe(503);
+    expect(sec.error?.message).toBe("HTTP 503");
+  });
+
+  test("invoke rejects(连接/超时)→ query() 照样 reject", async () => {
+    (invoke as any).mockRejectedValueOnce(new Error("reqwest: connection refused"));
+    await expect(ipradarSource.query("1.1.1.1", S)).rejects.toThrow(/connection refused/);
   });
 
   test("queryMany 非 2xx:错误段广播到每个 IP", async () => {
@@ -140,5 +162,6 @@ describe("ipradar 源", () => {
 });
 
 function json(status: number, body: unknown) { return new Response(JSON.stringify(body), { status }); }
+function reply(status: number, body: unknown) { return { status, body: JSON.stringify(body) }; }
 function resp(status: number, body: string) { return new Response(body, { status }); }
 function ndjson(evs: unknown[]) { return evs.map(e => JSON.stringify(e)).join("\n") + "\n"; }
