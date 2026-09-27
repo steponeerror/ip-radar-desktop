@@ -317,8 +317,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       try {
         const r = await invoke<HttpReply>("http_get", { url: RELEASES_API });
         if (disposed || r.status < 200 || r.status >= 300) return;
-        const tag = JSON.parse(r.body)?.tag_name;
-        if (typeof tag !== "string" || !isNewerVersion(tag, await getVersion())) return;
+        // GitHub tag_name 自带 v 前缀,与 i18n 模板字面 v(v{v})双写 → 剥前缀,统一喂比较与显示
+        const tag = String(JSON.parse(r.body)?.tag_name ?? "").replace(/^[vV]/, "");
+        if (!tag || !isNewerVersion(tag, await getVersion())) return;
         if (seenUpdateRef.current !== tag) {
           seenUpdateRef.current = tag;
           setUpdateDismissed(false);
