@@ -45,37 +45,66 @@ fn is_console_class(class: &str) -> bool {
     class == "ConsoleWindowClass" || class == "CASCADIA_HOSTING_WINDOW_CLASS"
 }
 
-/// Windows 划词捕获:向当前前台窗口模拟 Ctrl+C,轮询剪贴板取回选中文本。
-/// 每个守卫失败即返回 None(前端回退到查剪贴板旧文本路径)。
+/// 热键事件 payload(与前端 HotkeyPayload 的契约,字段名一字不差):
+/// selected = 捕获到的选中文本;reason = 出口原因,前端按其路由
+/// (captured→直接查询 / clipboard-fallback→查剪贴板 / 其余→捕获失败提示)。
+/// Clone 是 tauri Emitter::emit 的 bound 要求,序列化形状不受影响。
+#[derive(serde::Serialize, Clone)]
+pub struct HotkeyCapture {
+    pub selected: Option<String>,
+    pub reason: &'static str, // "captured" | "clipboard-fallback" | "timeout" | "non-text-clipboard"
+}
+
+/// Windows 划词捕获:先强制抬起修饰键,再向当前前台窗口模拟 Ctrl+C,
+/// 轮询剪贴板取回选中文本。
+///
+/// 根因(v0.1.10 划词全应用失败):热键 Ctrl+Alt+I 触发时用户手指仍物理按着
+/// Ctrl+Alt,此刻模拟的 Ctrl+C 到达前台窗口实为 Ctrl+Alt+C(Alt 按下 →
+/// 菜单加速键/无效组合),复制从未发生 → 150ms 轮询超时 → 静默回退查旧
+/// 剪贴板 = 症状。参考 InkTimeRecord/TTime 的 GlobalShortcutEvent:模拟
+/// 复制前先用 SendInput 强制抬起全部修饰键,本函数同款做法。
+/// 每步 eprintln 一行诊断日志,真机排障靠它(dev/WSLg 控制台可见)。
 #[cfg(target_os = "windows")]
-fn read_selection(app: &tauri::AppHandle) -> Option<String> {
+fn read_selection(app: &tauri::AppHandle) -> HotkeyCapture {
     use tauri_plugin_clipboard_manager::ClipboardExt;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_C, VK_CONTROL,
+        VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_RWIN,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow};
 
-    // 轮询参数:每 20ms 探一次剪贴板,总等待 ≤150ms。
+    // 轮询参数:每 20ms 探一次剪贴板,总等待 ≤500ms(旧 150ms 对慢应用偏紧,
+    // 拉长到 500ms 让记事本以外的慢路径也有机会)。
     const POLL_STEP_MS: u64 = 20;
-    const POLL_CAP_MS: u64 = 150;
+    const POLL_CAP_MS: u64 = 500;
 
-    // 守卫 1:前台是终端 → 模拟 Ctrl+C 会发 SIGINT 杀进程,宁可不捕获。
+    // 守卫 1:前台是终端 → 模拟 Ctrl+C 会发 SIGINT 杀进程,宁可不捕获;
+    // 前端拿到 clipboard-fallback 继续走查剪贴板路径(设计内)。
+    let mut fg_class = String::new();
     let fg = unsafe { GetForegroundWindow() };
     if !fg.is_null() {
         let mut buf = [0u16; 64];
         let n = unsafe { GetClassNameW(fg, buf.as_mut_ptr(), buf.len() as i32) };
-        let class = String::from_utf16_lossy(&buf[..n.max(0) as usize]);
-        if is_console_class(&class) {
-            return None;
-        }
+        fg_class = String::from_utf16_lossy(&buf[..n.max(0) as usize]);
+    }
+    eprintln!("[hotkey] foreground class={fg_class:?}");
+    if is_console_class(&fg_class) {
+        eprintln!("[hotkey] guard1 terminal foreground -> clipboard-fallback");
+        return HotkeyCapture { selected: None, reason: "clipboard-fallback" };
     }
 
     // 守卫 2(Q7):剪贴板当前非文本(图片/文件)→ 模拟复制会毁掉它,而我们
-    // 只有旧文本可恢复;空串是合法文本,照常走。
-    let saved = app.clipboard().read_text().ok()?;
+    // 只有旧文本可恢复,此路径不得动剪贴板;空串是合法文本,照常走。
+    let saved = match app.clipboard().read_text() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("[hotkey] guard2 non-text clipboard ({e:?}) -> non-text-clipboard");
+            return HotkeyCapture { selected: None, reason: "non-text-clipboard" };
+        }
+    };
 
-    // 模拟 Ctrl+C:四事件一次 SendInput;down 事件标志为 0(纯虚拟键码,
-    // 不带 SCANCODE/UNICODE/EXTENDEDKEY),up 事件带 KEYEVENTF_KEYUP。
+    // down 事件标志为 0(纯虚拟键码,不带 SCANCODE/UNICODE/EXTENDEDKEY),
+    // up 事件带 KEYEVENTF_KEYUP。
     let key = |vk: u16, up: u32| INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
@@ -88,6 +117,38 @@ fn read_selection(app: &tauri::AppHandle) -> Option<String> {
             },
         },
     };
+
+    // 根因修复第一步:SendInput 8 个 KEYUP 把 Ctrl/Alt/Shift/Win 的左右修饰键
+    // 全部强制抬起(物理键用户还按着,这里只在输入流里插入 UP 抵消其逻辑
+    // 按下态,否则下面的 Ctrl+C 会被污染成 Ctrl+Alt+C)。
+    let ups = [
+        key(VK_LCONTROL, KEYEVENTF_KEYUP),
+        key(VK_RCONTROL, KEYEVENTF_KEYUP),
+        key(VK_LMENU, KEYEVENTF_KEYUP),
+        key(VK_RMENU, KEYEVENTF_KEYUP),
+        key(VK_LSHIFT, KEYEVENTF_KEYUP),
+        key(VK_RSHIFT, KEYEVENTF_KEYUP),
+        key(VK_LWIN, KEYEVENTF_KEYUP),
+        key(VK_RWIN, KEYEVENTF_KEYUP),
+    ];
+    let sent = unsafe {
+        SendInput(
+            ups.len() as u32,
+            ups.as_ptr(),
+            std::mem::size_of::<INPUT>() as i32,
+        )
+    };
+    eprintln!("[hotkey] modifier keyup SendInput sent={}/8", sent);
+    std::thread::sleep(Duration::from_millis(20)); // 让修饰键抬起状态先落地
+
+    // 清空剪贴板做变更检测:旧法比对「新文本 != 旧文本」会漏检「选中文本 ==
+    // 剪贴板旧值」;改为先清空,轮询时「读到非空 = 捕获成功」。是我们清空的,
+    // 出口(成功/超时)都必须 write_text(&saved) 恢复,不能留空。
+    if let Err(e) = app.clipboard().write_text("") {
+        eprintln!("[hotkey] clipboard clear failed ({e:?}); 变更检测降级,可能误读旧值");
+    }
+
+    // 根因修复第二步:干净的 Ctrl+C 四事件一次 SendInput。
     let events = [
         key(VK_CONTROL, 0),
         key(VK_C, 0),
@@ -102,23 +163,34 @@ fn read_selection(app: &tauri::AppHandle) -> Option<String> {
         );
     }
 
-    // 轮询:文本变了 → 取新值并恢复旧剪贴板(Q4);读到 Err = 其他进程
-    // 瞬时持锁,按未变继续轮;超时未变 → None(剪贴板没动过,无需恢复)。
-    for _ in 0..(POLL_CAP_MS / POLL_STEP_MS) {
-        std::thread::sleep(std::time::Duration::from_millis(POLL_STEP_MS));
+    // 轮询:读到非空文本 = 复制发生 → 取回并恢复旧剪贴板;读到空 = 复制
+    // 未发生,继续轮;Err = 其他进程瞬时持锁,按未就绪继续轮。
+    for i in 1..=(POLL_CAP_MS / POLL_STEP_MS) {
+        std::thread::sleep(Duration::from_millis(POLL_STEP_MS));
         if let Ok(cur) = app.clipboard().read_text() {
-            if cur != saved {
+            if !cur.is_empty() {
                 let _ = app.clipboard().write_text(&saved);
-                return Some(cur);
+                eprintln!(
+                    "[hotkey] captured at ~{}ms ({} chars) -> clipboard restored",
+                    i * POLL_STEP_MS,
+                    cur.chars().count()
+                );
+                return HotkeyCapture { selected: Some(cur), reason: "captured" };
             }
         }
+        if i % 5 == 0 {
+            eprintln!("[hotkey] polling {}/{}ms, no capture yet", i * POLL_STEP_MS, POLL_CAP_MS);
+        }
     }
-    None
+    let _ = app.clipboard().write_text(&saved); // 超时也必须恢复:清空是我们做的
+    eprintln!("[hotkey] timeout after {POLL_CAP_MS}ms -> clipboard restored, reason=timeout");
+    HotkeyCapture { selected: None, reason: "timeout" }
 }
 
 #[cfg(not(target_os = "windows"))]
-fn read_selection(_app: &tauri::AppHandle) -> Option<String> {
-    None // 划词仅 Windows 实现;其他平台事件 payload 为 null,前端走剪贴板回退
+fn read_selection(_app: &tauri::AppHandle) -> HotkeyCapture {
+    // 划词仅 Windows 实现;其他平台统一 clipboard-fallback,前端走剪贴板路径
+    HotkeyCapture { selected: None, reason: "clipboard-fallback" }
 }
 
 #[tauri::command]
@@ -308,10 +380,11 @@ fn main() {
                         std::thread::spawn(move || {
                             // 顺序硬约束:捕获先于 show() —— show 抢走焦点后,
                             // 模拟的 Ctrl+C 就发给了本应用自己;阻塞至多
-                            // ~150ms,放后台线程以免卡热键分发。
-                            let selection = read_selection(&app);
+                            // ~550ms(20ms 修饰键落地 + 500ms 轮询),放后台
+                            // 线程以免卡热键分发。
+                            let capture = read_selection(&app);
                             show(&app);
-                            let _ = app.emit("hotkey-triggered", selection);
+                            let _ = app.emit("hotkey-triggered", capture);
                         });
                     }
                 })
