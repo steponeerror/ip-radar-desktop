@@ -27,13 +27,29 @@
 
 ### 安装
 
-从 [Releases](../../releases) 下载对应平台安装包:
+**macOS —— 推荐 Homebrew**
 
-| 平台 | 包 | 首次运行 |
-|---|---|---|
-| Linux | `.deb` / `.AppImage` | 直接安装/运行 |
-| macOS | `.dmg` | 未签名,首次运行需执行:`xattr -cr "/Applications/IP Radar Desktop.app"`(或右键 → 打开) |
-| Windows | `.msi` / `.exe` | 未签名,SmartScreen 弹窗时点「更多信息 → 仍要运行」 |
+```bash
+brew install --cask steponeerror/ipradar/ip-radar-desktop
+```
+
+更新:`brew upgrade --cask ip-radar-desktop`。
+
+次选:从 [Releases](../../releases) 直接下载 `.dmg`。应用未签名,仅自担风险者用,首次运行需执行:
+
+```bash
+xattr -cr "/Applications/IP Radar Desktop.app"
+```
+
+(或右键 → 打开)
+
+**Windows**
+
+从 [Releases](../../releases) 下载 `.msi` / `.exe`。未签名,SmartScreen 弹「已保护你的电脑」时点「更多信息 → 仍要运行」。
+
+**Linux**
+
+从 [Releases](../../releases) 下载 `.deb` / `.AppImage`,直接安装/运行。
 
 ### 配置
 
@@ -79,13 +95,29 @@ npm run tauri build
 
 ### Install
 
-Grab the package for your platform from [Releases](../../releases):
+**macOS — Homebrew recommended**
 
-| Platform | Package | First run |
-|---|---|---|
-| Linux | `.deb` / `.AppImage` | install / run directly |
-| macOS | `.dmg` | unsigned — first run: `xattr -cr "/Applications/IP Radar Desktop.app"` (or right-click → Open) |
-| Windows | `.msi` / `.exe` | unsigned — on the SmartScreen prompt choose "More info → Run anyway" |
+```bash
+brew install --cask steponeerror/ipradar/ip-radar-desktop
+```
+
+To update: `brew upgrade --cask ip-radar-desktop`.
+
+Fallback: download the `.dmg` directly from [Releases](../../releases). The app is unsigned — use at your own risk; before first run:
+
+```bash
+xattr -cr "/Applications/IP Radar Desktop.app"
+```
+
+(or right-click the app → Open)
+
+**Windows**
+
+Download `.msi` / `.exe` from [Releases](../../releases). Unsigned — when SmartScreen says "Windows protected your PC", choose "More info → Run anyway".
+
+**Linux**
+
+Download `.deb` / `.AppImage` from [Releases](../../releases); install / run directly.
 
 ### Configuration
 
