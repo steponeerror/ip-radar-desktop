@@ -19,6 +19,8 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - name: Version gate (tag ↔ tauri.conf.json)
+        run: bash scripts/check-tag-version.sh "${GITHUB_REF_NAME}"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -26,6 +28,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "IP Radar Desktop ${{ github.ref_name }}"
           releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           args: --bundles dmg
   # Windows 依赖 mac 先建好 release;只编裸 exe(免安装),不做 NSIS/MSI
   build-windows:
