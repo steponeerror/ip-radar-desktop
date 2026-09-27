@@ -488,6 +488,11 @@ fn main() {
                         if !focus_left_window(&win_clone) {
                             return;
                         }
+                        // 最小化 → 停任务栏(skipTaskbar 已 false),不 hide;
+                        // blur-hide 只针对真失焦,否则点 — 会连任务栏入口一起消失。
+                        if win_clone.is_minimized().unwrap_or(false) {
+                            return;
+                        }
                         let _ = win_clone.hide();
                     }
                 });
