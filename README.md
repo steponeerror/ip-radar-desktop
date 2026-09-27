@@ -45,11 +45,11 @@ xattr -cr "/Applications/IP Radar Desktop.app"
 
 **Windows**
 
-从 [Releases](../../releases) 下载 `.msi` / `.exe`。未签名,SmartScreen 弹「已保护你的电脑」时点「更多信息 → 仍要运行」。
+从 [Releases](../../releases) 下载便携版 `.exe`(免安装,双击即用)。未签名,SmartScreen 弹「已保护你的电脑」时点「更多信息 → 仍要运行」。
 
 **Linux**
 
-从 [Releases](../../releases) 下载 `.deb` / `.AppImage`,直接安装/运行。
+暂无安装包,请[从源码构建](#从源码构建)。
 
 ### 配置
 
@@ -113,11 +113,11 @@ xattr -cr "/Applications/IP Radar Desktop.app"
 
 **Windows**
 
-Download `.msi` / `.exe` from [Releases](../../releases). Unsigned — when SmartScreen says "Windows protected your PC", choose "More info → Run anyway".
+Download the portable `.exe` (no installer, double-click to run) from [Releases](../../releases). Unsigned — when SmartScreen says "Windows protected your PC", choose "More info → Run anyway".
 
 **Linux**
 
-Download `.deb` / `.AppImage` from [Releases](../../releases); install / run directly.
+No packages yet — [build from source](#build-from-source).
 
 ### Configuration
 
