@@ -3,6 +3,7 @@
 // App 持有 settings 真相(本组件不读 store)。set_hotkey/set_autostart 失败非致命:store 已存,留在本页展示提示。
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import type { Settings } from "../sources/_types";
 import { saveSettings } from "../settings";
 import { getSources } from "../sources/registry";
@@ -39,6 +40,11 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
   const [capturing, setCapturing] = useState(false);
   const [urlInvalid, setUrlInvalid] = useState(false);
   const [applyHint, setApplyHint] = useState<string | null>(null);
+  // 当前版本行:Rust 侧真实版本(tauri.conf.json 为权威源);浏览器 dev 下 catch 吞留空
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    getVersion().then(v => setAppVersion(v)).catch(() => {});
+  }, []);
 
   // 快捷键录入:窗口级捕获 keydown,Esc 取消,合法组合写入草稿
   useEffect(() => {
@@ -261,6 +267,10 @@ export function SettingsPage({ initial, onSaved, onClose }: Props) {
             />
             {t("settings.autostart")}
           </label>
+          <div className="flex items-center justify-between">
+            <span className={LABEL_CLS}>{t("settings.version")}</span>
+            <span className="font-mono text-xs text-zinc-500">{appVersion || "…"}</span>
+          </div>
         </Section>
         </div>
 
