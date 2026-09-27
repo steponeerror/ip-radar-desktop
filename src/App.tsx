@@ -1,5 +1,5 @@
 // 主 UI(双栏):常驻查询栏 → banners → 左列表(w-72)/右详情;settings 整窗覆盖态。
-// 唤起链路:Rust 快捷键 → emit("hotkey-triggered") → 划词优先(仅 Windows 携带选区)→ 否则读剪贴板 → extractIps → 分发查询。
+// 唤起链路:Rust 快捷键 → emit("hotkey-triggered") 携带 {selected, reason} → routeHotkey 路由:captured→分发选中(无 IP 走 noIpHint)/clipboard-fallback→读剪贴板/其余→captureFailed 提示条 → extractIps → 分发查询。
 // warming(503 code):轮询 /api/db-status(5s 起 ×2 至 30s 封顶),就绪后重发原查询。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -7,6 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { extractIps } from "./extractIps";
+import { routeHotkey, type HotkeyPayload } from "./hotkey";
 import { getSources } from "./sources/registry";
 import { runSources } from "./sources/_scheduler";
 import { TECH_LABEL } from "./components/badges";
@@ -108,6 +109,8 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const [warming, setWarming] = useState(false);
   const [inputText, setInputText] = useState("");
   const [noIpHint, setNoIpHint] = useState(false);
+  // 划词捕获失败提示(timeout/非文本剪贴板):amber 提示条,dispatch/改输入即清
+  const [captureFailed, setCaptureFailed] = useState(false);
   const [querying, setQuerying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -206,6 +209,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   /** 剪贴板/手输共用分发:≥1 个进查询;0 个提示无 IP(输入已聚焦,直接改稿重查)。 */
   const dispatch = useCallback(
     (text: string) => {
+      setCaptureFailed(false);
       const { ips, total } = extractIps(text, settingsRef.current.maxIps);
       if (ips.length === 0) {
         setNoIpHint(true);
@@ -218,20 +222,27 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     [],
   );
 
-  // 快捷键唤起:划词优先(仅 Windows 后端携带选区;null = 无划词),否则读剪贴板一次(spec:不做持续监听)
+  // 快捷键唤起:按 Rust 上报的 reason 路由(Task 3)——captured 即便无 IP 也 dispatch
+  // (走 noIpHint,不再静默查剪贴板);仅 clipboard-fallback(终端守卫/非 Windows)读剪贴板一次;
+  // timeout/非文本剪贴板 → capture-failed 提示条 + 聚焦输入。
   // disposed-flag:cleanup 先于 listen promise resolve 时立即反注册,防泄漏/StrictMode 双挂载重复分发
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    listen<string | null>("hotkey-triggered", e => {
-      const sel = e.payload; // string | null
-      if (sel && extractIps(sel, settingsRef.current.maxIps).ips.length > 0) {
-        dispatch(sel);
+    listen<HotkeyPayload>("hotkey-triggered", e => {
+      const route = routeHotkey(e.payload);
+      if (route.action === "dispatch") {
+        dispatch(route.text);
         return;
       }
-      readText()
-        .then(text => dispatch(text ?? ""))
-        .catch(() => dispatch(""));
+      if (route.action === "clipboard") {
+        readText()
+          .then(text => dispatch(text ?? ""))
+          .catch(() => dispatch(""));
+        return;
+      }
+      setCaptureFailed(true);
+      inputRef.current?.focus();
     })
       .then(u => {
         if (disposed) {
@@ -352,6 +363,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                 onChange={e => {
                   setInputText(e.target.value);
                   setNoIpHint(false);
+                  setCaptureFailed(false);
                 }}
                 onKeyDown={e => {
                   if (e.key === "Enter") submitInput();
@@ -372,6 +384,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
             </div>
             {noIpHint && (
               <div className="border-b border-zinc-800 px-4 py-1.5 text-xs text-zinc-500">{t("query.noIp")}</div>
+            )}
+            {captureFailed && (
+              <div className="border-b border-zinc-800 px-4 py-1.5 text-xs text-amber-400/80">{t("query.captureFailed")}</div>
             )}
             {guidance && <GuidanceCard serverUrl={settings.serverUrl} onGoSettings={goSettings} />}
             {warming && (
