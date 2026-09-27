@@ -1,7 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
@@ -170,6 +172,52 @@ fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     }
 }
 
+/// invoke("http_get") 的回复体:status+body 原样透传,非 2xx 不算错误
+/// (由前端按状态码自行分支);只有 reqwest 层错误才走 Err。
+#[derive(serde::Serialize)]
+pub struct HttpReply {
+    pub status: u16,
+    pub body: String,
+}
+
+/// 全局池化 HTTP 客户端:tauri-plugin-http 每次 fetch 新建 Client,连接池
+/// 用完即弃,每次查询都重付 DNS+TCP+TLS 冷启动(跨境实测 646ms~2s);
+/// 静态共享一个 Client,划词热路径复用池内热连接。
+static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .expect("http client")
+});
+
+/// 池化 GET(前端 Task 2 经 invoke("http_get", { url, headers }) 调用):
+/// headers 透传(HeaderName/HeaderValue 解析失败的头跳过,不炸整个查询);
+/// 非 2xx 原样返回 status+body;reqwest 层错误(连接/超时/非 UTF-8)→ Err。
+#[tauri::command]
+async fn http_get(
+    url: String,
+    headers: Option<HashMap<String, String>>,
+) -> Result<HttpReply, String> {
+    let mut req = CLIENT.get(url);
+    if let Some(map) = headers {
+        let mut h = reqwest::header::HeaderMap::new();
+        for (k, v) in map {
+            // 非法头名/头值(坏字符、控制字符等)跳过,宁缺毋炸
+            if let (Ok(name), Ok(val)) = (
+                k.parse::<reqwest::header::HeaderName>(),
+                v.parse::<reqwest::header::HeaderValue>(),
+            ) {
+                h.insert(name, val);
+            }
+        }
+        req = req.headers(h);
+    }
+    let resp = req.send().await.map_err(|e| e.to_string())?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    Ok(HttpReply { status, body })
+}
+
 /// Startup hotkey comes from the persisted store (frontend key "settings.hotkey");
 /// empty/missing/invalid falls back to the default.
 fn stored_hotkey(app: &tauri::AppHandle) -> String {
@@ -184,6 +232,21 @@ fn stored_hotkey(app: &tauri::AppHandle) -> String {
         })
         .filter(|h| !h.is_empty())
         .unwrap_or_else(|| DEFAULT_HOTKEY.to_string())
+}
+
+/// 启动预热用的 serverUrl(stored_hotkey 同款读法):settings.json 的
+/// settings.serverUrl,空/缺失 → None(预热是尽力而为,直接跳过)。
+fn stored_server_url(app: &tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_store::StoreExt;
+    app.store("settings.json")
+        .ok()
+        .and_then(|s| s.get("settings"))
+        .and_then(|v| {
+            v.get("serverUrl")
+                .and_then(|u| u.as_str())
+                .map(str::to_string)
+        })
+        .filter(|u| !u.is_empty())
 }
 
 /// Windows:焦点是否已真正离开本窗口树。WebView2 是子 HWND,点击内容会把
@@ -208,6 +271,13 @@ fn focus_left_window(w: &tauri::WebviewWindow) -> bool {
 }
 
 fn main() {
+    // 0.13 的 rustls-no-provider 不自带 provider:reqwest 构建 client 时取
+    // 进程默认 CryptoProvider,缺省会 panic。装 ring 而非 aws-lc:与锁内
+    // reqwest 0.12 的 rustls 路径共用同一个 ring,不把 aws-lc-sys/cmake
+    // 拖进 mac/msvc 发布工具链(tauri core 同款,见其 protocol/tauri.rs)。
+    // 已被装过时返回 Err,幂等忽略。
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     tauri::Builder::default()
         .manage(HotkeyState(Mutex::new(None)))
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| show(app)))
@@ -249,7 +319,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             hide_window,
             set_hotkey,
-            set_autostart
+            set_autostart,
+            http_get
         ])
         .setup(|app| {
             // ── Win11 原生圆角(DWM):不用透明窗,保系统 resize 框架+阴影;
@@ -351,6 +422,17 @@ fn main() {
             // ── dev 逃生门:启动即显示(WSLg/无托盘环境的唯一入口)──
             if cfg!(debug_assertions) {
                 show(app.handle());
+            }
+
+            // ── 启动预热:后台对 serverUrl GET 一次,把 DNS+TCP+TLS 提前
+            // 跑热,划词首查直接复用 CLIENT 池内连接(db-status 是前端既有
+            // 的轻量状态端点,同 host 即可暖连接,且无需鉴权头)。只暖启动
+            // 时的 host,换 serverUrl 后首查仍冷;空/缺失跳过,失败静默。──
+            if let Some(base) = stored_server_url(app.handle()) {
+                let url = format!("{}/api/db-status", base.trim_end_matches('/'));
+                tauri::async_runtime::spawn(async move {
+                    let _ = CLIENT.get(url).send().await;
+                });
             }
             Ok(())
         })

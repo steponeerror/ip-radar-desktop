@@ -21,6 +21,12 @@ tauri-plugin-store = "2.4.5"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-single-instance = "2.4.5"
 tauri-plugin-window-state = "2"
+# 池化 http_get 直用 reqwest:版本对齐锁内 tauri core 已用的 0.13(不引第三份拷贝);
+# default-features=false 防 native-tls/openssl 混入。0.13 无 0.12 的 rustls-tls 特性,
+# 且其 rustls 特性是 aws-lc provider(会把 aws-lc-sys/cmake 拖进 mac/msvc 发布
+# 工具链)——改用 tauri core 同款组合:rustls-no-provider + 自带 rustls(ring)。
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "charset"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
