@@ -33,7 +33,7 @@
 brew install --cask steponeerror/ipradar/ip-radar-desktop
 ```
 
-更新:`brew upgrade --cask ip-radar-desktop`。
+更新:`brew upgrade --cask ip-radar-desktop`。仅支持 Apple Silicon(arm64)Mac。
 
 次选:从 [Releases](../../releases) 直接下载 `.dmg`。应用未签名,仅自担风险者用,首次运行需执行:
 
@@ -101,7 +101,7 @@ npm run tauri build
 brew install --cask steponeerror/ipradar/ip-radar-desktop
 ```
 
-To update: `brew upgrade --cask ip-radar-desktop`.
+To update: `brew upgrade --cask ip-radar-desktop`. Apple Silicon (arm64) Macs only.
 
 Fallback: download the `.dmg` directly from [Releases](../../releases). The app is unsigned — use at your own risk; before first run:
 

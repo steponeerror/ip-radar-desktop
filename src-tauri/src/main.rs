@@ -192,7 +192,8 @@ static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
 
 /// 池化 GET(前端 Task 2 经 invoke("http_get", { url, headers }) 调用):
 /// headers 透传(HeaderName/HeaderValue 解析失败的头跳过,不炸整个查询);
-/// 非 2xx 原样返回 status+body;reqwest 层错误(连接/超时/非 UTF-8)→ Err。
+/// 非 2xx 原样返回 status+body;reqwest 层错误(连接/超时等传输层)→ Err;
+/// charset 特性下 text() 有损解码,坏编码不报错。
 #[tauri::command]
 async fn http_get(
     url: String,
@@ -431,7 +432,10 @@ fn main() {
             if let Some(base) = stored_server_url(app.handle()) {
                 let url = format!("{}/api/db-status", base.trim_end_matches('/'));
                 tauri::async_runtime::spawn(async move {
-                    let _ = CLIENT.get(url).send().await;
+                    // 必须读完响应体连接才能回池;未读就 drop 会直接断连,预热白做
+                    if let Ok(r) = CLIENT.get(url).send().await {
+                        let _ = r.text().await;
+                    }
                 });
             }
             Ok(())
