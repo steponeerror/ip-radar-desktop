@@ -27,8 +27,10 @@ fn geometry_is_broken(logical: (f64, f64), pos: (i32, i32)) -> bool {
 }
 
 /// Show + focus the main window. Hotkey, tray and second-instance all land here.
-/// unminimize 先行:show() 只调 SW_SHOW,不解除 iconic 状态 —— 配合 skipTaskbar
-/// 会让最小化后的窗口在屏幕上零痕迹,热键永远唤不回(v0.1.5 Windows 实测)。
+/// unminimize 先行:show() 只调 SW_SHOW,不解除 iconic 状态,跳过它热键唤不回
+/// 最小化窗口(v0.1.5 Windows 实测)。现 skipTaskbar:false,最小化停任务栏、
+/// blur-hide 亦有 is_minimized 守卫(见 Focused(false));但任务栏态仍属 iconic,
+/// 恢复前台必须显式 unminimize,故此序不可倒。
 fn show(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();

@@ -241,6 +241,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
           .catch(() => dispatch(""));
         return;
       }
+      setNoIpHint(false);
       setCaptureFailed(true);
       inputRef.current?.focus();
     })
