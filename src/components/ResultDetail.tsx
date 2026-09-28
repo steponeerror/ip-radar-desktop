@@ -1,14 +1,14 @@
-// 单 IP 详情(对比台 L2/L3):L2 身份条 = IP + 共识徽章(consensusOf,极性制),
-// 之下每源手风琴行 —— header 常显源名 + 本源主张(ipradar 判定徽章 / abuse 色阶分数),
+// 单 IP 详情(对比台 L2/L3):L2 身份条 = IP + 共识徽章(consensusOf,全票制),
+// 身份条下徽章带 = 威胁分类 + info 幽灵徽章(BadgeRow,badgesOf);之下每源手风琴行 —— header 常显源名 + 本源主张(ipradar 判定徽章 / abuse 色阶分数),
 // 对比层即默认视图:全部收起,唯一例外是出错源恒展开(错误不是情报,得让人看见)。
-// L3 展开体:ipradar = geo 行 + 威胁类型 chips + 命中清单(零命中 → N 组分类 · 0 命中);
+// L3 展开体:ipradar = geo 行 + 命中清单(零命中 → N 组分类 · 0 命中);
 // abuse 卡体不变。N 源线性可扩:主张语义在各源 claimsOf,展示经 ConsensusBadge 共用。
 import { useState } from "react";
 import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { SourceSection, Settings } from "../sources/_types";
 import type { LookupResult } from "../sources/ipradar";
 import type { AbuseSection } from "../sources/abuseipdb";
-import { VERDICT_STYLE, scoreTone, scoreTextTone, confTone, TECH_LABEL, ConsensusBadge } from "./badges";
+import { VERDICT_STYLE, INFO_STYLE, badgesOf, scoreTone, scoreTextTone, confTone, TECH_LABEL, ConsensusBadge } from "./badges";
 import { consensusOf } from "./consensus";
 import { useI18n } from "../i18n";
 
@@ -24,6 +24,43 @@ function errorText(code: number | undefined, message: string, retryAfter: number
   if (code === 429) return t("err.429", { seconds: retryAfter ?? 30 });
   if (/timeout/i.test(message)) return t("err.timeout");
   return message;
+}
+
+/** class.* 查词 + 未知类型兜底(server classLabel 同款):normType(连字符→下划线)查词典,
+ *  缺键回退规范化原文(下划线→空格)。t 缺键返回 key 本身,以此判存在。 */
+function classLabel(type: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const norm = type.replace(/-/g, "_");
+  const key = `class.${norm}`;
+  const label = t(key);
+  return label !== key ? label : norm.replace(/_/g, " ");
+}
+
+/** 徽章带(L2 身份条与滚动区之间):分类徽章按自带 verdict 染色 + 置信度数字,
+ *  info 幽灵徽章 cdn → torExit → usage(badgesOf 输出序);usage 原文不译,截断 + title 全文。
+ *  两数组皆空整行不渲染(设计约束 1)。 */
+function BadgeRow({ sections }: { sections: SourceSection[] }) {
+  const { t } = useI18n();
+  const { classes, infos } = badgesOf(sections);
+  if (classes.length === 0 && infos.length === 0) return null;
+  return (
+    <div className="flex shrink-0 flex-wrap gap-1 border-b border-zinc-800 px-4 py-2">
+      {classes.map(c => (
+        <span key={`c:${c.type}`} className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${VERDICT_STYLE[c.verdict] ?? VERDICT_STYLE.informational}`}>
+          {classLabel(c.type, t)}
+          <span className="ml-1 font-mono text-[10px] opacity-80">{c.confidence}</span>
+        </span>
+      ))}
+      {infos.map(b => (
+        <span
+          key={`i:${b.kind}`}
+          title={b.value}
+          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${INFO_STYLE} ${b.kind === "usage" ? "max-w-44 truncate" : ""}`}
+        >
+          {b.kind === "usage" ? b.value : t(`badge.${b.kind}`)}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function IpradarBody({ d }: { d: LookupResult }) {
@@ -44,20 +81,6 @@ function IpradarBody({ d }: { d: LookupResult }) {
         <Row label={t("ipDetail.range")} value={d.ip_range?.value} conf={d.ip_range?.confidence} />
         <Row label="GPS" value={gps} title={d.location?.accuracy_radius ? `±${d.location.accuracy_radius} km` : undefined} />
       </div>
-      {(d.threat?.types?.length ?? 0) > 0 || d.threat?.is_cdn ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {d.threat?.types?.map(type => (
-            <span key={type} className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300">
-              {type}
-            </span>
-          ))}
-          {d.threat?.is_cdn && (
-            <span key="cdn" className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300">
-              CDN
-            </span>
-          )}
-        </div>
-      ) : null}
       {entries.length === 0 ? (
         <p className="mt-2 text-xs text-zinc-500">
           {t("ipDetail.noHits", { n: Object.keys(d.classifications ?? {}).length })}
@@ -191,6 +214,7 @@ export function ResultDetail({
         <h2 className="min-w-0 truncate font-mono text-xl tracking-tight text-zinc-100" title={ip}>{ip}</h2>
         <ConsensusBadge consensus={consensusOf(sections)} t={t} />
       </div>
+      <BadgeRow sections={sections} />
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
         {sections.map(sec => {
           if (sec.status === "warming") return null; // App 顶部 warming 横幅已覆盖
