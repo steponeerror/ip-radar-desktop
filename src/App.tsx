@@ -16,7 +16,7 @@ import type { Settings, SourceSection } from "./sources/_types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
 import { I18nProvider, useI18n, type Pref } from "./i18n";
 import { isNewerVersion, stripTag } from "./version";
-import { recordQuery, stampVerdicts, loadHistory, saveHistory, type HistoryEntry } from "./history";
+import { recordQuery, stampVerdicts, loadHistory, saveHistory, HISTORY_CAP, type HistoryEntry } from "./history";
 import { nextPollDelay } from "./warming";
 import { consensusOf } from "./components/consensus";
 import { ResultList } from "./components/ResultList";
@@ -346,10 +346,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   useEffect(() => {
     loadHistory()
       .then(entries => {
-        // 读取落定前热键查询已写入 ref(亚秒窗口)→ ref 是更新的真相,不回灌覆盖(防丢记录后再被落盘冲掉)
-        if (historyRef.current.length > 0) return;
-        historyRef.current = entries;
-        setHistory(entries);
+        // 挂载竞态:热键查询可在读取落定前写入 ref(其落盘后 store.get 仍可能返回存前旧照)→ 磁盘旧条目按 IP 集合并入而非丢弃,防下次落盘清空全盘历史
+        const memKeys = new Set(historyRef.current.map(e => [...e.ips].sort().join(",")));
+        const merged = historyRef.current.length
+          ? [...historyRef.current, ...entries.filter(e => !memKeys.has([...e.ips].sort().join(",")))].slice(0, HISTORY_CAP)
+          : entries; // ref 空(无竞态)= 原始加载行为
+        historyRef.current = merged;
+        setHistory(merged);
       })
       .catch(() => {});
   }, []);
