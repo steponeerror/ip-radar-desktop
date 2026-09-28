@@ -10,7 +10,7 @@ export const VERDICT_STYLE: Record<string, string> = {
   benign: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
   informational: "bg-zinc-500/15 text-zinc-400 ring-1 ring-zinc-500/25",
   reserved: "bg-zinc-600/30 text-zinc-300 ring-1 ring-zinc-500/40",
-  // 极性分歧:与 suspicious 同 amber 家族,靠文案区分 —— 分歧本身就是“需要看一眼”的注意级信号
+  // 分歧:与 suspicious 同 amber 家族 —— 分歧本身就是“需要看一眼”的注意级信号
   disagreed: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30",
 };
 
@@ -39,7 +39,7 @@ export function confTone(conf: number): string {
 }
 
 /** 共识徽章(L1 列表行 / L2 身份条共用):纯展示,t 作 props 传入,判定语义在 consensus.ts。
- *  分歧不带数字;非良性共识携带最坏主张源的原生数值(σ 置信度 / abuse 分数)。 */
+ *  分歧不带数字;非良性共识携带主张者中的最大原生数值(σ 置信度 / abuse 分数)。 */
 export function ConsensusBadge({ consensus, t }: {
   consensus: Consensus;
   t: (key: string, vars?: Record<string, string | number>) => string;

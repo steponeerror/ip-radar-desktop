@@ -1,8 +1,8 @@
 // 共识核心(纯函数,无 React):跨源等权判定的唯一真相源。
-// 语义(2026-09-23 设计定稿,grill-me 全分支确认):
+// 语义(2026-09-23 定稿;2026-09-28 改全票制):
 // - 每源自报主张(claimsOf):ipradar = threat.verdict;AbuseIPDB = 分数>0 即恶意,0=弃权。
-// - 极性制:良性 × 非良性同场 = 分歧;同极性取更坏(malicious > suspicious > benign)。
-// - value = 更坏 code 主张者中的最大原生数值(σ 置信度 / abuse 分数,不归一);
+// - 全票制:参与主张的源 code 完全一致才出该 verdict;任何混合(哪怕同为非良性)= 分歧。
+// - value = 主张者中的最大原生数值(σ 置信度 / abuse 分数,不归一);
 //   仅非良性携带(良性无数值,分歧不带数字 —— 展示规则与语义同源)。
 // - reserved 优先于一切;弃权/错误/缺 key 不参与;全不参与 = none。
 // L1/L2 视图层只消费,不改判定。
@@ -15,7 +15,7 @@ export type Consensus =
   | { kind: "verdict"; code: VerdictCode; value?: number }
   | { kind: "none" };
 
-const RANK: Record<VerdictCode, number> = { benign: 0, suspicious: 1, malicious: 2 };
+// 全票制无“更坏”概念,RANK 已删(2026-09-28)。
 
 // id→source 映射模块级缓存:源集在进程内不变(registry glob eager),避免每次共识重建
 let srcMap: Map<string, QuerySource> | undefined;
@@ -37,18 +37,18 @@ export function consensusOf(sections: SourceSection[]): Consensus {
     .map(c => c.verdict)
     .filter((v): v is { code: VerdictCode; value?: number } => !!v);
   if (verdicts.length === 0) return { kind: "none" };
-  if (verdicts.some(v => v.code === "benign") && verdicts.some(v => v.code !== "benign")) {
-    return { kind: "disagreed" };
-  }
-  const worstCode = verdicts.reduce(
-    (w, v) => (RANK[v.code] > RANK[w] ? v.code : w), "benign" as VerdictCode);
+  // 全票制:唯一 code 才出 verdict,任何混合 = 分歧(用户拍板 2026-09-28:
+  // 同时都恶意才显恶意;可疑×恶意不再塌缩到恶意)
+  const codes = new Set(verdicts.map(v => v.code));
+  if (codes.size > 1) return { kind: "disagreed" };
+  const code = verdicts[0].code;
   let value: number | undefined;
-  if (worstCode !== "benign") {
-    const vals = verdicts.filter(v => v.code === worstCode).map(v => v.value)
+  if (code !== "benign") {
+    const vals = verdicts.map(v => v.value)
       .filter((n): n is number => typeof n === "number");
     if (vals.length > 0) value = Math.max(...vals);
   }
-  return { kind: "verdict", code: worstCode, value };
+  return { kind: "verdict", code, value };
 }
 
 export function agreedCountry(sections: SourceSection[]): string | undefined {
