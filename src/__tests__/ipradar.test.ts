@@ -89,11 +89,12 @@ describe("ipradar 源", () => {
       for await (const { ip, section } of ipradarSource.queryMany!(["1.1.1.1"], S)) out.push([ip, section]);
     })();
     await fx.ready;
-    fx.reply({ status: 503, body: JSON.stringify({ error: { code: "warming", message: "db warming up" } }) });
+    fx.reply({ status: 503, body: JSON.stringify({ error: { code: "warming", message: "db warming up", retry_after: 30 } }) });
     await p;
     expect(out).toHaveLength(1);
     expect(out[0][1].status).toBe("error");
     expect(out[0][1].error.code).toBe("warming"); // UI 靠它起预热轮询
+    expect(out[0][1].error.retryAfter).toBe(30); // retry_after→retryAfter 映射(429 展示消费)"
   });
 
   test("I2:块间隔 5s(<15s idle)的慢流照常完成", async () => {
