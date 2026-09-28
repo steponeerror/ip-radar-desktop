@@ -15,7 +15,7 @@ import { TECH_LABEL } from "./components/badges";
 import type { Settings, SourceSection } from "./sources/_types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
 import { I18nProvider, useI18n, type Pref } from "./i18n";
-import { isNewerVersion } from "./version";
+import { isNewerVersion, stripTag } from "./version";
 import { recordQuery, stampVerdicts, loadHistory, saveHistory, type HistoryEntry } from "./history";
 import { nextPollDelay } from "./warming";
 import { consensusOf } from "./components/consensus";
@@ -315,10 +315,14 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     let disposed = false;
     const check = async () => {
       try {
-        const r = await invoke<HttpReply>("http_get", { url: RELEASES_API });
+        // GitHub REST 对无 User-Agent 的请求直接 403(实测),必带 UA 才能过下面的状态门
+        const r = await invoke<HttpReply>("http_get", {
+          url: RELEASES_API,
+          headers: { "User-Agent": "ip-radar-desktop" },
+        });
         if (disposed || r.status < 200 || r.status >= 300) return;
         // GitHub tag_name 自带 v 前缀,与 i18n 模板字面 v(v{v})双写 → 剥前缀,统一喂比较与显示
-        const tag = String(JSON.parse(r.body)?.tag_name ?? "").replace(/^[vV]/, "");
+        const tag = stripTag(String(JSON.parse(r.body)?.tag_name ?? ""));
         if (!tag || !isNewerVersion(tag, await getVersion())) return;
         if (seenUpdateRef.current !== tag) {
           seenUpdateRef.current = tag;
@@ -342,6 +346,8 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   useEffect(() => {
     loadHistory()
       .then(entries => {
+        // 读取落定前热键查询已写入 ref(亚秒窗口)→ ref 是更新的真相,不回灌覆盖(防丢记录后再被落盘冲掉)
+        if (historyRef.current.length > 0) return;
         historyRef.current = entries;
         setHistory(entries);
       })
