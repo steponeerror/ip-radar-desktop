@@ -12,8 +12,9 @@ export function collectSources(mods: Record<string, SourceModule>): QuerySource[
   for (const [path, mod] of Object.entries(mods)) {
     if (path.includes("/_")) continue; // _ 前缀不注册,同 server 约定
     const src = mod?.default as Record<string, unknown> | undefined;
-    if (!src || typeof src !== "object" || typeof src.id !== "string" || typeof src.query !== "function") {
-      throw new Error(`source contract violation: ${path} (need { id: string, query(ip, settings) })`);
+    if (!src || typeof src !== "object" || typeof src.id !== "string"
+      || (typeof src.query !== "function" && typeof src.queryMany !== "function")) {
+      throw new Error(`source contract violation: ${path} (need { id: string }, query or queryMany)`);
     }
     out.push(src as unknown as QuerySource);
   }

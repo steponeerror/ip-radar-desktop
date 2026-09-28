@@ -32,7 +32,7 @@ type View = "main" | "settings" | "history";
 const RELEASES_API = "https://api.github.com/repos/steponeerror/ip-radar-desktop/releases/latest";
 const RELEASES_URL = "https://github.com/steponeerror/ip-radar-desktop/releases/latest";
 
-// Rust http_get 回复契约(src-tauri main.rs HttpReply,同 sources/ipradar.ts):
+// Rust http_get 回复契约(src-tauri main.rs HttpReply):
 // 非 2xx 不 reject,status+body 透传;仅传输层错误才 reject invoke
 interface HttpReply { status: number; body: string }
 

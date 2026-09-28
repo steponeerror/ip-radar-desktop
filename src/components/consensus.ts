@@ -9,7 +9,7 @@
 // - reserved 优先于一切;弃权/错误/缺 key 不参与;全不参与 = none。
 // L1/L2 视图层只消费,不改判定。
 import { getSources } from "../sources/registry";
-import type { SourceSection, SourceClaims, VerdictCode, QuerySource } from "../sources/_types";
+import type { SourceSection, SourceClaims, VerdictCode } from "../sources/_types";
 
 export type Consensus =
   | { kind: "reserved" }
@@ -19,11 +19,8 @@ export type Consensus =
 
 // 全票制无“更坏”概念,RANK 已删(2026-09-28)。
 
-// id→source 映射模块级缓存:源集在进程内不变(registry glob eager),避免每次共识重建
-let srcMap: Map<string, QuerySource> | undefined;
-
 function claimsOfAll(sections: SourceSection[]): SourceClaims[] {
-  if (!srcMap) srcMap = new Map(getSources().map(s => [s.id, s]));
+  const srcMap = new Map(getSources().map(s => [s.id, s]));
   const out: SourceClaims[] = [];
   for (const sec of sections) {
     const claims = srcMap.get(sec.sourceId)?.claimsOf?.(sec);

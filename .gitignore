@@ -26,3 +26,6 @@ yarn-error.log*
 docs/
 ui-preview.png
 .worktrees/
+tsconfig.tsbuildinfo
+tsconfig.node.tsbuildinfo
+vite.config.d.ts

@@ -45,7 +45,8 @@ export interface QuerySource {
   id: string;
   label: string;
   maxConcurrency?: number;
-  query(ip: string, s: Settings): Promise<SourceSection>;
+  // query 与 queryMany 至少实现其一(registry 契约校验):ipradar 只有 queryMany,abuseipdb 只有 query
+  query?(ip: string, s: Settings): Promise<SourceSection>;
   queryMany?(ips: string[], s: Settings): AsyncIterable<{ ip: string; section: SourceSection }>;
   // 非 ok section 一律 undefined(由各源自查);未实现 = 不参与共识,不炸视图层
   claimsOf?(section: SourceSection): SourceClaims | undefined;

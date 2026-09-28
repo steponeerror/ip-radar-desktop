@@ -17,7 +17,7 @@ describe("abuseipdb 源", () => {
       lastReportedAt: "2026-09-20T00:00:00Z",
       reports: [{ comment: "ssh brute" }, { comment: "" }, { comment: "port scan" }, { comment: "4th" }],
     } }));
-    const sec = await abuseipdbSource.query("1.2.3.4", S);
+    const sec = await abuseipdbSource.query!("1.2.3.4", S);
     const url = (tf as any).mock.calls[0][0] as string;
     expect(url).toBe("https://api.abuseipdb.com/api/v2/check?ipAddress=1.2.3.4&maxAgeInDays=90");
     expect((tf as any).mock.calls[0][1].headers.Key).toBe("ak");
@@ -31,7 +31,7 @@ describe("abuseipdb 源", () => {
   });
 
   test("无 key → needs-key 占位,不发请求", async () => {
-    const sec = await abuseipdbSource.query("1.2.3.4", DEFAULT_SETTINGS);
+    const sec = await abuseipdbSource.query!("1.2.3.4", DEFAULT_SETTINGS);
     expect(sec.status).toBe("needs-key");
     expect(tf).not.toHaveBeenCalled();
   });
@@ -40,7 +40,7 @@ describe("abuseipdb 源", () => {
     vi.useFakeTimers();
     (tf as any).mockResolvedValueOnce(json(429, { error: { retry_after: 2, message: "rate" } }))
                 .mockResolvedValueOnce(json(200, { data: { abuseConfidenceScore: 0, totalReports: 0, numDistinctUsers: 0, isTor: false } }));
-    const p = abuseipdbSource.query("1.2.3.4", S);
+    const p = abuseipdbSource.query!("1.2.3.4", S);
     await vi.advanceTimersByTimeAsync(2100);
     expect((await p).status).toBe("ok");
     vi.useRealTimers();
@@ -50,7 +50,7 @@ describe("abuseipdb 源", () => {
     vi.useFakeTimers();
     (tf as any).mockResolvedValueOnce(json(429, { error: { retry_after: 2, message: "rate" } }))
                 .mockResolvedValueOnce(json(429, { error: { retry_after: 7, message: "still rate" } }));
-    const p = abuseipdbSource.query("1.2.3.4", S);
+    const p = abuseipdbSource.query!("1.2.3.4", S);
     await vi.advanceTimersByTimeAsync(3000);
     const sec = await p;
     expect(sec.status).toBe("error");

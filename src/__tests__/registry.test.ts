@@ -10,8 +10,12 @@ describe("registry 契约", () => {
     expect(() => collectSources({ "./bad.ts": { default: { label: "L", query: async () => ({ sourceId: "", status: "ok" }) } } }))
       .toThrow(/bad/);
   });
-  test("缺 query 拒绝", () => {
+  test("缺 query 且缺 queryMany 拒绝", () => {
     expect(() => collectSources({ "./bad2.ts": { default: { id: "b2", label: "L" } } })).toThrow(/bad2/);
+  });
+  test("仅 queryMany 的源通过(ipradar 形态)", () => {
+    const src = { id: "y", label: "Y", queryMany: async function* () {} };
+    expect(collectSources({ "./y.ts": { default: src } })).toHaveLength(1);
   });
   test("_ 前缀文件跳过", () => {
     expect(collectSources({ "./_types.ts": { default: {} } })).toHaveLength(0);

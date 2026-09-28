@@ -39,13 +39,15 @@ export async function runSources(
       }
       return;
     }
+    if (!src.query) return; // registry 契约:query/queryMany 至少其一,走不到上面分支必有 query
+    const q = src.query; // 闭包内属性窄化会丢失,提为 const
     const n = src.maxConcurrency ?? 5;
     let i = 0;
     await Promise.all(Array.from({ length: Math.min(n, ips.length) }, async () => {
       while (i < ips.length) {
         const ip = ips[i++];
         try {
-          out.get(ip)?.push(await src.query(ip, s));
+          out.get(ip)?.push(await q(ip, s));
           emit();
         } catch (e) {
           out.get(ip)?.push(errSec(e));
