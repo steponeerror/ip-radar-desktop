@@ -32,7 +32,7 @@ export interface Settings {
 }
 
 // 判定主张(v0.1.7 共识设计):每源对一 IP 自报结论,视图层据此做跨源等权对比。
-// AbuseIPDB 语义:分数>0 即恶意主张(分数=程度),0=弃权 —— 无人报告≠良性。
+// AbuseIPDB 语义:分数 ≥25 恶意主张(分数=程度),0-24 弃权 —— 零星报告≠可信主张(2026-09-28)。
 export type VerdictCode = "malicious" | "suspicious" | "benign";
 
 export interface SourceClaims {

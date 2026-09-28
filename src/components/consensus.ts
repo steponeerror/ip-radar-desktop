@@ -1,6 +1,6 @@
 // 共识核心(纯函数,无 React):跨源等权判定的唯一真相源。
 // 语义(2026-09-23 定稿;2026-09-28 改全票制):
-// - 每源自报主张(claimsOf):ipradar = threat.verdict;AbuseIPDB = 分数>0 即恶意,0=弃权。
+// - 每源自报主张(claimsOf):ipradar = threat.verdict;AbuseIPDB = 分数 ≥25 恶意主张,0-24 弃权(ABUSE_MALICIOUS_MIN)。
 // - 全票制:参与主张的源 code 完全一致才出该 verdict;任何混合(哪怕同为非良性)= 分歧。
 // - value = 主张者中的最大原生数值(σ 置信度 / abuse 分数,不归一);
 //   仅非良性携带(良性无数值,分歧不带数字 —— 展示规则与语义同源)。

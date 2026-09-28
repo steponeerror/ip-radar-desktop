@@ -3,6 +3,10 @@
 import { fetch as tf } from "@tauri-apps/plugin-http";
 import type { QuerySource } from "./_types";
 
+// 恶意主张门槛(2026-09-28 用户定):分数 ≥25 才构成恶意主张,0-24 = 弃权 —— 对齐
+// badges.tsx scoreTone 绿区(0-24 emerald):零星误报不应推着跨源共识出「分歧」。
+export const ABUSE_MALICIOUS_MIN = 25;
+
 export interface AbuseSection {
   score: number;
   totalReports: number;
@@ -23,8 +27,8 @@ export const abuseipdbSource: QuerySource = {
     if (sec.status !== "ok") return undefined;
     const a = sec.data as AbuseSection;
     return {
-      // 分数>0 即恶意主张,分数=程度;0=弃权(无人报告≠良性)
-      verdict: a.score > 0 ? { code: "malicious", value: a.score } : undefined,
+      // ≥25 即恶意主张(分数=程度),0-24 = 弃权(零星报告≠可信主张,官方无分带)
+      verdict: a.score >= ABUSE_MALICIOUS_MIN ? { code: "malicious", value: a.score } : undefined,
       country: a.countryCode?.toUpperCase(),
     };
   },

@@ -63,6 +63,13 @@ describe("abuseipdb 源", () => {
   test("maxConcurrency=5(调度器并发上限)", () => {
     expect(abuseipdbSource.maxConcurrency).toBe(5);
   });
+
+  test("claimsOf 门槛:≥25 恶意主张,<25 弃权(对齐 scoreTone 绿区)", () => {
+    expect(abuseipdbSource.claimsOf?.({ sourceId: "abuseipdb", status: "ok", data: { score: 25 } as AbuseSection }))
+      .toEqual({ verdict: { code: "malicious", value: 25 }, country: undefined });
+    expect(abuseipdbSource.claimsOf?.({ sourceId: "abuseipdb", status: "ok", data: { score: 24 } as AbuseSection }))
+      .toEqual({ country: undefined });
+  });
 });
 
 function json(status: number, body: unknown) { return new Response(JSON.stringify(body), { status }); }
