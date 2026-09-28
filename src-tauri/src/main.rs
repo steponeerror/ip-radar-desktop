@@ -293,6 +293,34 @@ async fn http_get(
     Ok(HttpReply { status, body })
 }
 
+/// 打开外部 URL(新版本提醒「去下载」跳 releases 页):不引 opener 插件,
+/// 三平台各一行系统命令即零新依赖;URL 由前端硬编码常量传入,无外部
+/// 输入面,故命令本身不校验。spawn 失败(如裸 WSL 无 xdg-open)→ Err,
+/// 前端静默吞掉(失败静默是版本检查的共识行为)。
+#[tauri::command]
+fn open_url(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/C", "start"]);
+        c.arg(url);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("open");
+        c.arg(url);
+        c
+    };
+    #[cfg(target_os = "linux")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(url);
+        c
+    };
+    cmd.status().map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// Startup hotkey comes from the persisted store (frontend key "settings.hotkey");
 /// empty/missing/invalid falls back to the default.
 fn stored_hotkey(app: &tauri::AppHandle) -> String {
@@ -396,7 +424,8 @@ fn main() {
             hide_window,
             set_hotkey,
             set_autostart,
-            http_get
+            http_get,
+            open_url
         ])
         .setup(|app| {
             // ── Win11 原生圆角(DWM):不用透明窗,保系统 resize 框架+阴影;

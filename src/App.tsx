@@ -1,8 +1,9 @@
-// 主 UI(双栏):常驻查询栏 → banners → 左列表(w-72)/右详情;settings 整窗覆盖态。
+// 主 UI(双栏):常驻查询栏 → banners → 左列表(w-72)/右详情;settings/history 整窗覆盖态。
 // 唤起链路:Rust 快捷键 → emit("hotkey-triggered") 携带 {selected, reason} → routeHotkey 路由:captured→分发选中(无 IP 走 noIpHint)/clipboard-fallback→读剪贴板/其余→captureFailed 提示条 → extractIps → 分发查询。
 // warming(503 code):轮询 /api/db-status(5s 起 ×2 至 30s 封顶),就绪后重发原查询。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
@@ -14,13 +15,26 @@ import { TECH_LABEL } from "./components/badges";
 import type { Settings, SourceSection } from "./sources/_types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
 import { I18nProvider, useI18n, type Pref } from "./i18n";
+import { isNewerVersion } from "./version";
+import { recordQuery, stampVerdicts, loadHistory, saveHistory, type HistoryEntry } from "./history";
 import { nextPollDelay } from "./warming";
+import { consensusOf } from "./components/consensus";
 import { ResultList } from "./components/ResultList";
 import { ResultDetail } from "./components/ResultDetail";
 import { SettingsPage } from "./components/SettingsPage";
-import { CircleNotch, Gear, Minus, X, Moon, Sun } from "@phosphor-icons/react";
+import { HistoryPage } from "./components/HistoryPage";
+import { CircleNotch, Gear, Minus, X, Moon, Sun, ClockCounterClockwise } from "@phosphor-icons/react";
 
-type View = "main" | "settings";
+type View = "main" | "settings" | "history";
+
+// 新版本提醒两常量:检查打 GitHub 公开 API(无鉴权头无遥测,纯本地红线内),
+// 「去下载」开 releases 页(open_url 由 Task 1a 提供)
+const RELEASES_API = "https://api.github.com/repos/steponeerror/ip-radar-desktop/releases/latest";
+const RELEASES_URL = "https://github.com/steponeerror/ip-radar-desktop/releases/latest";
+
+// Rust http_get 回复契约(src-tauri main.rs HttpReply,同 sources/ipradar.ts):
+// 非 2xx 不 reject,status+body 透传;仅传输层错误才 reject invoke
+interface HttpReply { status: number; body: string }
 
 /** 任一 ipradar section 报 401 → 无 key 引导(新版 server 跨源必持 Bearer)。 */
 function needsKeyGuidance(results: Map<string, SourceSection[]>): boolean {
@@ -111,6 +125,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const [noIpHint, setNoIpHint] = useState(false);
   // 划词捕获失败提示(timeout/非文本剪贴板):amber 提示条,dispatch/改输入即清
   const [captureFailed, setCaptureFailed] = useState(false);
+  // 新版本提醒:tag 为 null = 无更新/未检出;dismissed 进程内不持久化,更高 tag 重新弹
+  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  // 历史:state 供 HistoryPage 渲染,ref 持最新供 runQuery 读写(其依赖数组刻意最小,不读 state)
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const historyRef = useRef<HistoryEntry[]>([]);
+  const seenUpdateRef = useRef<string | null>(null); // 已弹过的 tag:同 tag 关过后不再弹
   const [querying, setQuerying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -142,6 +163,12 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     async (ips: string[], trunc?: { total: number; max: number }) => {
       const epoch = ++queryEpochRef.current;
       stopWarmingPoll();
+      // 历史写入经此(ref 为真相 + 同步 state + 异步落盘,失败静默:丢一轮持久化可接受)
+      const commitHistory = (next: HistoryEntry[]) => {
+        historyRef.current = next;
+        setHistory(next);
+        void saveHistory(next).catch(() => {});
+      };
       lastIpsRef.current = ips;
       lastTruncRef.current = trunc;
       setTruncated(trunc ?? null);
@@ -149,6 +176,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       // 用户仍可随时点击左栏改选。
       setSelectedIp(ips[0]);
       setQuerying(true);
+      // 历史发起即记:dispatch 已拦 0-IP,进到这里的 ips 恒非空;去重置顶会作废旧
+      // verdicts(重查同集合回填前灰,设计内)
+      commitHistory(recordQuery(historyRef.current, ips));
       // 纵深防御(C1):调度器已把单源异常转 error section,这里兑底任何漏网异常,
       // 保证绝不永久停在 querying 态
       let map: Map<string, SourceSection[]>;
@@ -169,6 +199,14 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       }
       if (epoch !== queryEpochRef.current) return;   // 被更新查询取代:丢弃陈旧结果
       setResults(map);
+      // 回填共识 verdict:仅写 consensusOf 出 kind=verdict 的 ip(none/disagreed/
+      // reserved 无共识不写键 → HistoryPage 徽章灰)
+      const verdicts: NonNullable<HistoryEntry["verdicts"]> = {};
+      for (const [ip, secs] of map) {
+        const c = consensusOf(secs);
+        if (c.kind === "verdict") verdicts[ip] = c.code;
+      }
+      commitHistory(stampVerdicts(historyRef.current, ips, verdicts));
       setNoIpHint(false);
       setQuerying(false);
       if (anyWarming(map)) startWarmingRef.current();
@@ -270,6 +308,46 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     return () => window.removeEventListener("keydown", handler);
   }, [view]);
 
+  // 版本检查:启动延迟 5s(避开 Rust 连接预热)+ 每 24h 一轮;限频/断网/解析异常全静默
+  // —— 失败不该打扰查询主流程。仅当 tag 比当前版本高才弹;同 tag 被关过不再弹,
+  // 进程内发现更高 tag(新 release)重新弹。
+  useEffect(() => {
+    let disposed = false;
+    const check = async () => {
+      try {
+        const r = await invoke<HttpReply>("http_get", { url: RELEASES_API });
+        if (disposed || r.status < 200 || r.status >= 300) return;
+        // GitHub tag_name 自带 v 前缀,与 i18n 模板字面 v(v{v})双写 → 剥前缀,统一喂比较与显示
+        const tag = String(JSON.parse(r.body)?.tag_name ?? "").replace(/^[vV]/, "");
+        if (!tag || !isNewerVersion(tag, await getVersion())) return;
+        if (seenUpdateRef.current !== tag) {
+          seenUpdateRef.current = tag;
+          setUpdateDismissed(false);
+        }
+        setUpdateAvailable(tag);
+      } catch {
+        /* 静默,下个周期再试 */
+      }
+    };
+    const first = window.setTimeout(() => void check(), 5000);
+    const every = window.setInterval(() => void check(), 24 * 60 * 60 * 1000);
+    return () => {
+      disposed = true;
+      clearTimeout(first);
+      clearInterval(every);
+    };
+  }, []);
+
+  // 挂载读历史(store history.json → state/ref)
+  useEffect(() => {
+    loadHistory()
+      .then(entries => {
+        historyRef.current = entries;
+        setHistory(entries);
+      })
+      .catch(() => {});
+  }, []);
+
   // 常驻查询栏:挂载即聚焦(窗口常驻进程,热键 0 命中路径由 dispatch 兜底再聚焦)
   useEffect(() => {
     inputRef.current?.focus();
@@ -298,6 +376,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   };
 
   const goSettings = () => setView("settings");
+  const goHistory = () => setView("history");
   const guidance = needsKeyGuidance(results) && view === "main";
   const detailSections = selectedIp ? (results.get(selectedIp) ?? []) : [];
   const invalidLines = invalidLinesOf(results);
@@ -315,6 +394,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
           {t("app.title")}
         </span>
         <div className="flex items-center gap-0.5">
+          <button
+            aria-label="history"
+            onClick={goHistory}
+            className="rounded-md p-1.5 text-zinc-500 transition active:scale-[0.95] hover:bg-zinc-800 hover:text-zinc-300"
+          >
+            <ClockCounterClockwise size={16} />
+          </button>
           <button
             aria-label="theme"
             onClick={toggleTheme}
@@ -354,6 +440,20 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       <main key={view} className="fade-in min-h-0 flex-1 overflow-hidden">
         {view === "settings" ? (
           <SettingsPage initial={settings} onSaved={onSettingsSaved} onClose={() => setView("main")} />
+        ) : view === "history" ? (
+          <HistoryPage
+            entries={history}
+            onRequery={ips => {
+              setView("main");
+              dispatch(ips.join("\n"));   // 重查:走 dispatch 既有管线(提取/限流/noIpHint)
+            }}
+            onClear={() => {
+              historyRef.current = [];
+              setHistory([]);
+              void saveHistory([]).catch(() => {});
+            }}
+            onClose={() => setView("main")}
+          />
         ) : (
           <div className="flex h-full flex-col">
             {/* 常驻查询栏 */}
@@ -388,6 +488,25 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
             )}
             {captureFailed && (
               <div className="border-b border-zinc-800 px-4 py-1.5 text-xs text-amber-400/80">{t("query.captureFailed")}</div>
+            )}
+            {/* 新版本条(amber 同款,仅 main 视图渲染):× 进程内关闭,更高 tag 下轮重弹 */}
+            {updateAvailable && !updateDismissed && (
+              <div className="flex items-center gap-2 border-b border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-400">
+                <span>{t("update.available", { v: updateAvailable })}</span>
+                <button
+                  onClick={() => invoke("open_url", { url: RELEASES_URL }).catch(() => {})}
+                  className="rounded-md bg-amber-500/15 px-2.5 py-1 text-xs text-amber-300 ring-1 ring-amber-500/25 transition active:scale-[0.98] hover:bg-amber-500/25"
+                >
+                  {t("update.go")}
+                </button>
+                <button
+                  aria-label="dismiss"
+                  onClick={() => setUpdateDismissed(true)}
+                  className="ml-auto rounded-md px-1.5 py-0.5 text-amber-400/70 transition hover:bg-amber-500/15 hover:text-amber-300"
+                >
+                  ×
+                </button>
+              </div>
             )}
             {guidance && <GuidanceCard serverUrl={settings.serverUrl} onGoSettings={goSettings} />}
             {warming && (
