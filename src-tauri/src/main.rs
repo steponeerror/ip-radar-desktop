@@ -264,20 +264,22 @@ static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .expect("http client")
 });
 
-/// 池化 GET(前端 Task 2 经 invoke("http_get", { url, headers }) 调用):
-/// headers 透传(HeaderName/HeaderValue 解析失败的头跳过,不炸整个查询);
-/// 非 2xx 原样返回 status+body;reqwest 层错误(连接/超时等传输层)→ Err;
-/// charset 特性下 text() 有损解码,坏编码不报错。
-#[tauri::command]
-async fn http_get(
-    url: String,
-    headers: Option<HashMap<String, String>>,
-) -> Result<HttpReply, String> {
-    let mut req = CLIENT.get(url);
-    if let Some(map) = headers {
-        let mut h = reqwest::header::HeaderMap::new();
+/// 流式查询池化客户端(与 CLIENT 分池):只限 connect_timeout(15s),
+/// 不设总超时 —— 慢流(100 IP)合法,CLIENT 的 15s 总超时会把它拦腰斩断;
+/// TLS 与 CLIENT 同走全局 ring provider,不额外配置。
+static STREAM_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(15))
+        .build()
+        .expect("stream http client")
+});
+
+/// headers 透传(前端 header 名/值字符串 → HeaderMap):非法头名/头值
+/// (坏字符、控制字符等)跳过,宁缺毋炸。
+fn parse_headers(map: Option<HashMap<String, String>>) -> reqwest::header::HeaderMap {
+    let mut h = reqwest::header::HeaderMap::new();
+    if let Some(map) = map {
         for (k, v) in map {
-            // 非法头名/头值(坏字符、控制字符等)跳过,宁缺毋炸
             if let (Ok(name), Ok(val)) = (
                 k.parse::<reqwest::header::HeaderName>(),
                 v.parse::<reqwest::header::HeaderValue>(),
@@ -285,12 +287,64 @@ async fn http_get(
                 h.insert(name, val);
             }
         }
-        req = req.headers(h);
     }
-    let resp = req.send().await.map_err(|e| e.to_string())?;
+    h
+}
+
+/// 池化 GET(前端经 invoke("http_get", { url, headers }) 调用):
+/// headers 经 parse_headers 透传;非 2xx 原样返回 status+body;
+/// reqwest 层错误(连接/超时等传输层)→ Err;
+/// charset 特性下 text() 有损解码,坏编码不报错。
+#[tauri::command]
+async fn http_get(
+    url: String,
+    headers: Option<HashMap<String, String>>,
+) -> Result<HttpReply, String> {
+    let resp = CLIENT
+        .get(url)
+        .headers(parse_headers(headers))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     let status = resp.status().as_u16();
     let body = resp.text().await.map_err(|e| e.to_string())?;
     Ok(HttpReply { status, body })
+}
+
+/// 流式 POST(前端 ipradar.queryMany 经 invoke("http_stream") 调用):走
+/// STREAM_CLIENT(池化、无总超时)。2xx → 逐块 on_chunk.send,流尽后返回
+/// 空 body(契约:resolve 前发完全部 chunk,JS 侧按到达序消费);
+/// 非 2xx → 不发任何 chunk,读全 body 连同 status 返回(前端按错误信封
+/// 转 error section);reqwest 层错误(连接/超时等传输层)→ Err。
+#[tauri::command]
+async fn http_stream(
+    url: String,
+    headers: Option<HashMap<String, String>>,
+    body: String,
+    on_chunk: tauri::ipc::Channel<Vec<u8>>,
+) -> Result<HttpReply, String> {
+    use futures_util::StreamExt; // bytes_stream() 的 next()
+    let resp = STREAM_CLIENT
+        .post(url)
+        .headers(parse_headers(headers))
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = resp.status().as_u16();
+    if status >= 300 {
+        let body = resp.text().await.map_err(|e| e.to_string())?;
+        return Ok(HttpReply { status, body });
+    }
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| e.to_string())?;
+        let _ = on_chunk.send(chunk.to_vec());
+    }
+    Ok(HttpReply {
+        status,
+        body: String::new(),
+    })
 }
 
 /// 打开外部 URL(新版本提醒「去下载」跳 releases 页):不引 opener 插件,
@@ -429,6 +483,7 @@ fn main() {
             set_hotkey,
             set_autostart,
             http_get,
+            http_stream,
             open_url
         ])
         .setup(|app| {
@@ -538,15 +593,21 @@ fn main() {
                 show(app.handle());
             }
 
-            // ── 启动预热:后台对 serverUrl GET 一次,把 DNS+TCP+TLS 提前
-            // 跑热,划词首查直接复用 CLIENT 池内连接(db-status 是前端既有
-            // 的轻量状态端点,同 host 即可暖连接,且无需鉴权头)。只暖启动
-            // 时的 host,换 serverUrl 后首查仍冷;空/缺失跳过,失败静默。──
+            // ── 启动预热:后台对 serverUrl 各 GET 一次,把 DNS+TCP+TLS 提前
+            // 跑热,暖两个池(CLIENT 更新检查 + STREAM_CLIENT 流式查询,
+            // 连接池互不共享,各暖各的),划词首查直接复用池内热连接
+            // (db-status 是前端既有的轻量状态端点,同 host 即可暖连接,且无需
+            // 鉴权头)。只暖启动时的 host,换 serverUrl 后首查仍冷;空/缺失
+            // 跳过,失败静默。──
             if let Some(base) = stored_server_url(app.handle()) {
                 let url = format!("{}/api/db-status", base.trim_end_matches('/'));
                 tauri::async_runtime::spawn(async move {
-                    // 必须读完响应体连接才能回池;未读就 drop 会直接断连,预热白做
-                    if let Ok(r) = CLIENT.get(url).send().await {
+                    // 必须读完响应体连接才能回池;未读就 drop 会直接断连,预热白做。
+                    // 两池各暖各的,前一个失败不影响后一个。
+                    if let Ok(r) = CLIENT.get(&url).send().await {
+                        let _ = r.text().await;
+                    }
+                    if let Ok(r) = STREAM_CLIENT.get(&url).send().await {
                         let _ = r.text().await;
                     }
                 });

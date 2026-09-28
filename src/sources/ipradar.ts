@@ -1,8 +1,10 @@
 // ipradar 源:自托管 server 的查询客户端。
-// 多 IP 走 POST /api/query/stream(NDJSON,行事件随 chunk 到达逐步 yield),经 plugin-http fetch。
+// 多 IP 走 POST /api/query/stream(NDJSON,行事件随 chunk 到达逐步 yield),经
+// invoke("http_stream") 走 Rust 侧池化 STREAM_CLIENT(启动预热共享,免每查询
+// 冷启动 DNS+TCP+TLS),chunk 经 Channel 流入、命令返回 HttpReply 收尾。
 // 鉴权:有 key 则带 Authorization: Bearer;无 key 照发(旧版 server 放行,新版 401 由 UI 引导)。
 // warming(503 + error.code==="warming")只透传 code,重发轮询归 UI 层 —— 源保持无状态。
-import { fetch as tf } from "@tauri-apps/plugin-http";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type { QuerySource, SourceSection, Settings, VerdictCode } from "./_types";
 
 // 类型精简自 server frontend/src/api.ts,字段语义一致
@@ -24,9 +26,14 @@ function errSection(status: number, code: string | undefined, message: string, r
   return { sourceId: "ipradar", status: "error", error: { status, code, message, retryAfter } };
 }
 
-async function parseErr(r: Response): Promise<SourceSection> {
-  const body = await r.json().catch(() => null);
-  return errSection(r.status, body?.error?.code, body?.error?.message ?? r.statusText, body?.error?.retry_after);
+// invoke("http_stream") 的返回(与 Rust HttpReply 对齐):非 2xx 时 body 是
+// server 错误信封 JSON(零 chunk);2xx 流尽后 body 恒空。
+interface HttpReply { status: number; body: string }
+
+function errFromReply(r: HttpReply): SourceSection {
+  let env: any = null;
+  try { env = JSON.parse(r.body); } catch { /* 非 JSON 信封(网关裸页等),裸 status 兜底 */ }
+  return errSection(r.status, env?.error?.code, env?.error?.message ?? `HTTP ${r.status}`, env?.error?.retry_after);
 }
 
 const VERDICT_CODES: readonly VerdictCode[] = ["malicious", "suspicious", "benign"];
@@ -46,65 +53,67 @@ export const ipradarSource: QuerySource = {
   },
   async *queryMany(ips, s) {
     const base = s.serverUrl.replace(/\/+$/, "");
-    // 连接/响应头阶段 15s 超时;到达即停 —— AbortSignal 若挂到 body 读取期,
-    // 15s 定时器照样会把慢流拦腰斩断(I2),故用一次性手动控制器
-    const connectCtl = new AbortController();
-    const connectTimer = setTimeout(() => connectCtl.abort(), 15_000);
-    let r: Response;
-    try {
-      r = await tf(`${base}/api/query/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders(s) },
-        body: JSON.stringify({ ips }),
-        signal: connectCtl.signal,
+    // invoke 不可中止,无 AbortController;被新查询取代的残留流由 App 的 epoch
+    // 丢弃兜底(调度器照常消费完整个流,UI 层不认旧结果),不另造取消机制。
+    // 连接期 15s 超时在 Rust 侧 STREAM_CLIENT 的 connect_timeout 兜底。
+    // 事件队列(chunk / invoke 返回 / 传输层错误)按到达序消费:Rust 契约
+    // 是 resolve 前发完全部 chunk,invoke 的 then 再入队,顺序天然保真。
+    type Ev = { t: "chunk"; data: number[] } | { t: "end"; r: HttpReply } | { t: "err"; e: unknown };
+    const queue: Ev[] = [];
+    let wake: (() => void) | null = null;
+    const push = (ev: Ev) => { queue.push(ev); const w = wake; wake = null; w?.(); };
+    const channel = new Channel<number[]>();
+    channel.onmessage = data => push({ t: "chunk", data });
+    invoke<HttpReply>("http_stream", {
+      url: `${base}/api/query/stream`,
+      headers: { "Content-Type": "application/json", ...authHeaders(s) },
+      body: JSON.stringify({ ips }),
+      onChunk: channel,
+    }).then(r => push({ t: "end", r }), e => push({ t: "err", e }));
+    // 每块 15s 空闲看门狗(块间重置):100 IP 慢流只要还在吐数据就不算超时
+    // (idle 语义,对齐 server 前端 120s idle 的精神),从 chunk 间隔驱动。
+    const nextEv = (): Promise<Ev> => {
+      const head = queue.shift();
+      if (head) return Promise.resolve(head);
+      return new Promise<Ev>((resolve, reject) => {
+        const timer = setTimeout(
+          () => { wake = null; reject(new Error("idle timeout (15s without stream data)")); },
+          15_000,
+        );
+        wake = () => { clearTimeout(timer); resolve(queue.shift()!); };
       });
-    } finally {
-      clearTimeout(connectTimer);
-    }
-    if (!r.ok) { yield* singleErr(await parseErr(r), ips); return; }
-    const reader = r.body!.getReader();
+    };
     const dec = new TextDecoder();
     let buf = "";
     let sawDone = false;
-    // 每读一块 15s 空闲看门狗(块间重置);超时 cancel reader 后抛 —— 100 IP 慢流
-    // 只要还在吐数据就不算超时(idle 语义,对齐 server 前端 120s idle 的精神)
-    const readWithIdle = (): Promise<ReadableStreamReadResult<Uint8Array>> => {
-      const readP = reader.read();
-      readP.catch(() => {}); // race 已定后迟到的拒绝不外溢为 unhandled
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const idleP = new Promise<never>((_, rej) => {
-        timer = setTimeout(() => rej(new Error("idle timeout (15s without stream data)")), 15_000);
-      });
-      return Promise.race([readP, idleP]).finally(() => clearTimeout(timer));
-    };
     // done.invalid_lines 回填在末段(R5):scheduler 按引用入 map,
     // done 事件必然晚于全部 row 事件,消费完成后 UI 才渲染 —— 事后补字段安全
     let lastSection: SourceSection | null = null;
-    try {
-      while (true) {
-        const { done, value } = await readWithIdle();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop()!;
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const evt = JSON.parse(line);
-          if (evt.type === "row") {
-            lastSection = { sourceId: "ipradar", status: "ok", data: evt.result };
-            yield { ip: evt.result.ip, section: lastSection };
-          } else if (evt.type === "done") {
-            sawDone = true;
-            if ((evt.invalid_lines ?? 0) > 0 && lastSection) {
-              lastSection.invalidLines = evt.invalid_lines as number;
-            }
+    let reply: HttpReply | undefined;
+    while (true) {
+      const ev = await nextEv();
+      if (ev.t === "err") throw ev.e;
+      if (ev.t === "end") { reply = ev.r; break; }
+      buf += dec.decode(new Uint8Array(ev.data), { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop()!;
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const evt = JSON.parse(line);
+        if (evt.type === "row") {
+          lastSection = { sourceId: "ipradar", status: "ok", data: evt.result };
+          yield { ip: evt.result.ip, section: lastSection };
+        } else if (evt.type === "done") {
+          sawDone = true;
+          if ((evt.invalid_lines ?? 0) > 0 && lastSection) {
+            lastSection.invalidLines = evt.invalid_lines as number;
           }
         }
       }
-    } catch (e) {
-      await reader.cancel().catch(() => {});
-      throw e;
     }
+    // 非 2xx:命令零 chunk,body 是错误信封 → 转该源每 IP 单错 section
+    // (warming 503 的 error.code 原样透传,UI 靠它起预热轮询)
+    if (reply!.status >= 300) { yield* singleErr(errFromReply(reply!), ips); return; }
     if (!sawDone) throw new Error("stream ended before done");
   },
 };
