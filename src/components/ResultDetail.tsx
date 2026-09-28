@@ -36,7 +36,7 @@ function classLabel(type: string, t: ReturnType<typeof useI18n>["t"]): string {
 }
 
 /** 徽章带(L2 身份条与滚动区之间):分类徽章按自带 verdict 染色 + 置信度数字,
- *  info 幽灵徽章 cdn → torExit → usage(badgesOf 输出序);usage 原文不译,截断 + title 全文。
+ *  info 幽灵徽章 cdn → torExit → usage(badgesOf 固定秩,不随源完成序);usage 原文不译,截断 + title 全文。
  *  两数组皆空整行不渲染(设计约束 1)。 */
 function BadgeRow({ sections }: { sections: SourceSection[] }) {
   const { t } = useI18n();

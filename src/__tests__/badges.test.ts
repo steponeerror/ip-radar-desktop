@@ -50,6 +50,14 @@ describe("badgesOf info 徽章", () => {
     ]);
   });
 
+  test("sections 序颠倒(运行时 = 调度器并发完成序)→ infos 仍固定 cdn→torExit→usage", () => {
+    const r = badgesOf([
+      ab(bareAbuse({ isTor: true, usageType: "Fixed Line ISP" })),
+      ir({ threat: threat(true) }),
+    ]);
+    expect(r.infos.map(b => b.kind)).toEqual(["cdn", "torExit", "usage"]);
+  });
+
   test("abuse needs-key 时其 info 项自然缺失(is_cdn=false 也不出 cdn)", () => {
     const r = badgesOf([ir({ threat: threat(false) }), { sourceId: "abuseipdb", status: "needs-key" }]);
     expect(r.infos).toEqual([]);

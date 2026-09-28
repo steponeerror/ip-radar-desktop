@@ -30,9 +30,14 @@ export interface ClassBadge { type: string; verdict: string; confidence: number 
 /** info 徽章模型:cdn ← ipradar threat.is_cdn;torExit ← abuseipdb isTor;usage ← abuseipdb usageType 原文。 */
 export interface InfoBadge { kind: "cdn" | "torExit" | "usage"; value?: string }
 
+/** info 三件套固定秩:cdn → torExit → usage。运行时 sections 序 = 调度器并发完成序,
+ *  输出序不能依赖输入序(否则 cdn 可能落到 Tor 出口之后)。 */
+const INFO_RANK: Record<InfoBadge["kind"], number> = { cdn: 0, torExit: 1, usage: 2 };
+
 /** 从 sections 抽徽章带数据(纯函数,不引 i18n):classifications 仅 detected、按
- *  confidence 降序(同分按 type 字典序,全序确定);info 三件套与分类命中不去重
- *  (tor 分类 + TOR 出口并存 = 双源佐证);needs-key/error 源的徽章自然缺失,不占位。 */
+ *  confidence 降序(同分按 type 字典序,全序确定);info 三件套按固定秩 cdn→torExit→usage
+ *  (不依赖 sections 序)且与分类命中不去重(tor 分类 + TOR 出口并存 = 双源佐证);
+ *  needs-key/error 源的徽章自然缺失,不占位。 */
 export function badgesOf(sections: SourceSection[]): { classes: ClassBadge[]; infos: InfoBadge[] } {
   const classes: ClassBadge[] = [];
   const infos: InfoBadge[] = [];
@@ -51,6 +56,7 @@ export function badgesOf(sections: SourceSection[]): { classes: ClassBadge[]; in
     }
   }
   classes.sort((x, y) => y.confidence - x.confidence || (x.type < y.type ? -1 : x.type > y.type ? 1 : 0));
+  infos.sort((x, y) => INFO_RANK[x.kind] - INFO_RANK[y.kind]);
   return { classes, infos };
 }
 
