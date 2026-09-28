@@ -18,7 +18,7 @@ const zh: Record<string, string> = {
   "badge.torExit": "Tor 出口",
   // class.*:18 键与词条逐字抄 server web 词典(CLASS_KEYS 全集,含 c2_server/botnet_cc/hosting/vpn 旧形)
   "class.abuse_reports": "滥用举报",
-  "class.blacklist": "黑名",
+  "class.blacklist": "黑名单",
   "class.infected_system": "受感染系统",
   "class.botnet_cc": "C2",
   "class.brute_force": "暴力破解",
