@@ -64,10 +64,10 @@ describe("abuseipdb 源", () => {
     expect(abuseipdbSource.maxConcurrency).toBe(5);
   });
 
-  test("claimsOf 门槛:≥25 恶意主张,<25 弃权(对齐 scoreTone 绿区)", () => {
-    expect(abuseipdbSource.claimsOf?.({ sourceId: "abuseipdb", status: "ok", data: { score: 25 } as AbuseSection }))
-      .toEqual({ verdict: { code: "malicious", value: 25 }, country: undefined });
-    expect(abuseipdbSource.claimsOf?.({ sourceId: "abuseipdb", status: "ok", data: { score: 24 } as AbuseSection }))
+  test("claimsOf 门槛:≥50 恶意主张(二元,程度由 value 表达),<50 弃权", () => {
+    expect(abuseipdbSource.claimsOf?.({ sourceId: "abuseipdb", status: "ok", data: { score: 50 } as AbuseSection }))
+      .toEqual({ verdict: { code: "malicious", value: 50 }, country: undefined });
+    expect(abuseipdbSource.claimsOf?.({ sourceId: "abuseipdb", status: "ok", data: { score: 49 } as AbuseSection }))
       .toEqual({ country: undefined });
   });
 });

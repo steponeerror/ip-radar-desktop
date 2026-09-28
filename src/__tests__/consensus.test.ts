@@ -20,13 +20,13 @@ describe("consensusOf 全票制共识", () => {
     expect(consensusOf([ir({}), ab(0)])).toEqual({ kind: "none" });
   });
 
-  test("良性 × 25 分恶意 → 分歧(≥25 才构成主张)", () => {
-    expect(consensusOf([ir({ threat: threat("benign") }), ab(25)]))
+  test("良性 × 50 分恶意 → 分歧(≥50 才构成主张)", () => {
+    expect(consensusOf([ir({ threat: threat("benign") }), ab(50)]))
       .toEqual({ kind: "disagreed" });
   });
 
-  test("良性 × 24 分 → 良性(绿区 0-24 不构成主张,噪声报告不参与共识)", () => {
-    expect(consensusOf([ir({ threat: threat("benign") }), ab(24)]))
+  test("良性 × 49 分 → 良性(<50 弃权,噪声报告不参与共识)", () => {
+    expect(consensusOf([ir({ threat: threat("benign") }), ab(49)]))
       .toEqual({ kind: "verdict", code: "benign" });
   });
 

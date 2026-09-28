@@ -3,9 +3,11 @@
 import { fetch as tf } from "@tauri-apps/plugin-http";
 import type { QuerySource } from "./_types";
 
-// 恶意主张门槛(2026-09-28 用户定):分数 ≥25 才构成恶意主张,0-24 = 弃权 —— 对齐
-// badges.tsx scoreTone 绿区(0-24 emerald):零星误报不应推着跨源共识出「分歧」。
-export const ABUSE_MALICIOUS_MIN = 25;
+// 恶意主张门槛(2026-09-28 二定):二元主张,分数 ≥50 才构成恶意主张,0-49 = 弃权。
+// 程度由标签数值表达(徽章 value=max 原生刻度,不归一),不设可疑档——两档会把连续分数
+// 打包成不同选票,59/61 分界制造假分歧。依据:官方地板 25/行动建议 75-100,生态二元
+// 恶意 cutoff 集中在 50-80(GitHub 代码搜索 2026-09-28)。
+export const ABUSE_MALICIOUS_MIN = 50;
 
 export interface AbuseSection {
   score: number;
@@ -27,7 +29,7 @@ export const abuseipdbSource: QuerySource = {
     if (sec.status !== "ok") return undefined;
     const a = sec.data as AbuseSection;
     return {
-      // ≥25 即恶意主张(分数=程度),0-24 = 弃权(零星报告≠可信主张,官方无分带)
+      // ≥50 即恶意主张(二元,分数=程度由 value 表达),<50 = 弃权(官方无分带)
       verdict: a.score >= ABUSE_MALICIOUS_MIN ? { code: "malicious", value: a.score } : undefined,
       country: a.countryCode?.toUpperCase(),
     };
