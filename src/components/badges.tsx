@@ -3,6 +3,9 @@
 // 结构分区 = 直角 90°(brutalist §5 几何,分区是 hairline 圈出的 zone 不是圆角盒)。
 // .tsx:ConsensusBadge 纯展示组件住这里(L1/L2 共用,props 传 t,不引 i18n 上下文)。
 import type { Consensus } from "./consensus";
+import type { SourceSection } from "../sources/_types";
+import type { LookupResult } from "../sources/ipradar";
+import type { AbuseSection } from "../sources/abuseipdb";
 
 export const VERDICT_STYLE: Record<string, string> = {
   malicious: "bg-red-500/15 text-red-300 ring-1 ring-red-500/30",
@@ -16,6 +19,40 @@ export const VERDICT_STYLE: Record<string, string> = {
 
 /** brutalist §3.2 微字标:mono 大写宽字距,用于分区标题/表头/元数据。 */
 export const TECH_LABEL = "font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-500";
+
+/** info 幽灵徽章样式(L2 徽章带):信息级非定罪级,zinc 基调明显弱于彩色 verdict 徽章;
+ *  与 VERDICT_STYLE 同构(bg + text + ring-1),半径同 4px rounded(由使用方拼)。 */
+export const INFO_STYLE = "bg-zinc-700/50 text-zinc-400 ring-1 ring-zinc-600/40";
+
+/** 威胁分类徽章模型(ipradar classifications 的 detected 项,type 原样透传)。 */
+export interface ClassBadge { type: string; verdict: string; confidence: number }
+
+/** info 徽章模型:cdn ← ipradar threat.is_cdn;torExit ← abuseipdb isTor;usage ← abuseipdb usageType 原文。 */
+export interface InfoBadge { kind: "cdn" | "torExit" | "usage"; value?: string }
+
+/** 从 sections 抽徽章带数据(纯函数,不引 i18n):classifications 仅 detected、按
+ *  confidence 降序(同分按 type 字典序,全序确定);info 三件套与分类命中不去重
+ *  (tor 分类 + TOR 出口并存 = 双源佐证);needs-key/error 源的徽章自然缺失,不占位。 */
+export function badgesOf(sections: SourceSection[]): { classes: ClassBadge[]; infos: InfoBadge[] } {
+  const classes: ClassBadge[] = [];
+  const infos: InfoBadge[] = [];
+  for (const sec of sections) {
+    if (sec.status !== "ok") continue;
+    if (sec.sourceId === "ipradar") {
+      const d = sec.data as LookupResult;
+      for (const [type, c] of Object.entries(d.classifications ?? {})) {
+        if (c.detected) classes.push({ type, verdict: c.verdict, confidence: c.confidence });
+      }
+      if (d.threat?.is_cdn) infos.push({ kind: "cdn" });
+    } else if (sec.sourceId === "abuseipdb") {
+      const a = sec.data as AbuseSection;
+      if (a.isTor) infos.push({ kind: "torExit" });
+      if (a.usageType) infos.push({ kind: "usage", value: a.usageType });
+    }
+  }
+  classes.sort((x, y) => y.confidence - x.confidence || (x.type < y.type ? -1 : x.type > y.type ? 1 : 0));
+  return { classes, infos };
+}
 
 /** AbuseIPDB 分数条色阶:0-24 emerald / 25-59 amber / 60+ red。 */
 export function scoreTone(score: number): string {
