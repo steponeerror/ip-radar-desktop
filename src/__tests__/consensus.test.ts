@@ -35,12 +35,19 @@ describe("consensusOf 全票制共识", () => {
       .toEqual({ kind: "disagreed" });
   });
 
-  test("可疑 σ45 + 弃权 → 可疑 45(全票可疑携带最大原生数值)", () => {
+  test("恶意 σ80 + 弃权 → 分歧(定罪需全员主张,弃权=不支持)", () => {
+    expect(consensusOf([ir({ threat: threat("malicious", 80) }), ab(0)]))
+      .toEqual({ kind: "disagreed" });
+    expect(consensusOf([ir({ threat: threat("malicious", 80) }), ab(22)]))
+      .toEqual({ kind: "disagreed" });
+  });
+
+  test("可疑 σ45 + 弃权 → 可疑 45(提示级单源可立,非对称于恶意)", () => {
     expect(consensusOf([ir({ threat: threat("suspicious", 45) }), ab(0)]))
       .toEqual({ kind: "verdict", code: "suspicious", value: 45 });
   });
 
-  test("恶意 σ72 + 恶意 90 → 恶意 90(同 code 取最大原生数值)", () => {
+  test("恶意 σ72 + 恶意 90 → 恶意 90(全员主张,取最大原生数值)", () => {
     expect(consensusOf([ir({ threat: threat("malicious", 72) }), ab(90)]))
       .toEqual({ kind: "verdict", code: "malicious", value: 90 });
   });
