@@ -311,17 +311,28 @@ async fn http_get(
     Ok(HttpReply { status, body })
 }
 
+/// 流帧:块数据 + 完结标记,同走 Channel(块间 index 全序)。
+/// End 帧存在的原因:Channel 投递走 eval/内嵌 fetch,invoke 返回走 IPC 应答,
+/// 两条路径先后无契约 —— 客户端若以 invoke resolve 当流尽信号,会丢竞态中
+/// 晚到的末块(NDJSON done 行)→ "stream ended before done"。
+#[derive(serde::Serialize)]
+#[serde(tag = "t", rename_all = "lowercase")]
+enum StreamFrame {
+    Chunk { data: Vec<u8> },
+    End { status: u16 },
+}
+
 /// 流式 POST(前端 ipradar.queryMany 经 invoke("http_stream") 调用):走
-/// STREAM_CLIENT(池化、无总超时)。2xx → 逐块 on_chunk.send,流尽后返回
-/// 空 body(契约:resolve 前发完全部 chunk,JS 侧按到达序消费);
-/// 非 2xx → 不发任何 chunk,读全 body 连同 status 返回(前端按错误信封
-/// 转 error section);reqwest 层错误(连接/超时等传输层)→ Err。
+/// STREAM_CLIENT(池化、无总超时)。2xx → 逐块 on_chunk.send(StreamFrame::Chunk),
+/// 流尽后补发 End 帧再返回(完结信号与块同通道保序);非 2xx → 不发任何帧,
+/// 读全 body 连同 status 返回(前端按错误信封转 error section);reqwest 层
+/// 错误(连接/超时等传输层)→ Err。
 #[tauri::command]
 async fn http_stream(
     url: String,
     headers: Option<HashMap<String, String>>,
     body: String,
-    on_chunk: tauri::ipc::Channel<Vec<u8>>,
+    on_chunk: tauri::ipc::Channel<StreamFrame>,
 ) -> Result<HttpReply, String> {
     use futures_util::StreamExt; // bytes_stream() 的 next()
     let resp = STREAM_CLIENT
@@ -333,14 +344,18 @@ async fn http_stream(
         .map_err(|e| e.to_string())?;
     let status = resp.status().as_u16();
     if status >= 300 {
+        // 非 2xx:零帧无双路竞争,错误信封走返回值(与旧契约一致)
         let body = resp.text().await.map_err(|e| e.to_string())?;
         return Ok(HttpReply { status, body });
     }
     let mut stream = resp.bytes_stream();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| e.to_string())?;
-        let _ = on_chunk.send(chunk.to_vec());
+        let _ = on_chunk.send(StreamFrame::Chunk { data: chunk.to_vec() });
     }
+    // 完结帧:与全部块同通道且在其后(index 全序),客户端据此收尾 ——
+    // invoke 返回值(即使先到)只是传输层回执,不作流尽信号
+    let _ = on_chunk.send(StreamFrame::End { status });
     Ok(HttpReply {
         status,
         body: String::new(),

@@ -13,10 +13,11 @@ import { DEFAULT_SETTINGS } from "../settings";
 const S = { ...DEFAULT_SETTINGS, ipradarKey: "k1" };
 const okResult = { ip: "1.1.1.1", threat: { verdict: "benign", confidence: 0, types: [], is_cdn: false } };
 
-// 接管一次 http_stream:invoke 挂起待 reply;channel.onmessage 由测试推 chunk。
-// ready 在 mock 实参到手后兑现(chunk 必须等 channel 捕获后才能推)。
+// 接管一次 http_stream:invoke 挂起待 reply;channel.onmessage 由测试推帧。
+// 帧形对齐 Rust StreamFrame:{t:"chunk",data:number[]} / {t:"end",status}。
+// ready 在 mock 实参到手后兑现(帧必须等 channel 捕获后才能推)。
 function mockStream() {
-  let chan: { onmessage: ((d: number[]) => void) | null } | null = null;
+  let chan: { onmessage: ((f: { t: string; data?: number[]; status?: number }) => void) | null } | null = null;
   let reply!: (r: { status: number; body: string }) => void;
   let onReady!: () => void;
   const ready = new Promise<void>(r => { onReady = r; });
@@ -27,7 +28,8 @@ function mockStream() {
   });
   return {
     ready,
-    chunk(s: string) { chan!.onmessage!(Array.from(new TextEncoder().encode(s))); },
+    chunk(s: string) { chan!.onmessage!({ t: "chunk", data: Array.from(new TextEncoder().encode(s)) }); },
+    end(status = 200) { chan!.onmessage!({ t: "end", status }); },
     reply(r: { status: number; body: string }) { reply(r); },
   };
 }
@@ -45,7 +47,8 @@ describe("ipradar 源", () => {
     await fx.ready;
     fx.chunk(ndjson([{ type: "start", total: 2 }, { type: "row", idx: 1, result: { ...okResult, ip: "2.2.2.2" } }]));
     fx.chunk(ndjson([{ type: "row", idx: 0, result: okResult }])); // 无 done —— Review Focus 4
-    fx.reply({ status: 200, body: "" });
+    fx.reply({ status: 200, body: "" }); // 2xx 回执(被丢弃)
+    fx.end(200); // End 帧到但 done 行缺席 → 抛错
     await expect(p).rejects.toThrow(/stream ended|done/);
     expect(got).toEqual(["2.2.2.2", "1.1.1.1"]); // 收到的照发,但整体 reject
   });
@@ -59,6 +62,7 @@ describe("ipradar 源", () => {
     await fx.ready;
     fx.chunk(ndjson([{ type: "row", idx: 0, result: okResult }, { type: "done", invalid_lines: 0 }]));
     fx.reply({ status: 200, body: "" });
+    fx.end(200);
     await p;
     expect(got).toEqual(["1.1.1.1"]);
     // 命令恒 POST(Rust 侧固定),前端断言:命令名/URL/body/鉴权头
@@ -110,11 +114,30 @@ describe("ipradar 源", () => {
         { type: "done", invalid_lines: 0 },
       ]));
       fx.reply({ status: 200, body: "" });
+      fx.end(200);
     }, 5_000);
     const n2 = it.next(); // 等待 chunk2(fake timer 控制)
     await vi.advanceTimersByTimeAsync(5_000);
     expect((await n2).value!.ip).toBe("2.2.2.2");
     expect((await it.next()).done).toBe(true);
+  });
+
+  test("R7 竞态:invoke resolve 先于含 done 的末块到达 → 仍完整收流", async () => {
+    const fx = mockStream();
+    const got: string[] = [];
+    const p = (async () => {
+      for await (const { ip } of ipradarSource.queryMany!(["1.1.1.1"], S)) got.push(ip);
+    })();
+    await fx.ready;
+    // Tauri 双传输实况:chunk 走 Channel(eval/内嵌 fetch),命令返回走 IPC 应答,
+    // 两条路径先后无契约 —— 返回先落地、末块稍后才到是真实会发生的序。
+    // (mock 里 reply 是微任务,让出一轮宏任务让 end 事件先入队,再现真实乱序)
+    fx.reply({ status: 200, body: "" });
+    await new Promise(r => setTimeout(r, 0));
+    fx.chunk(ndjson([{ type: "row", idx: 0, result: okResult }, { type: "done", invalid_lines: 0 }]));
+    fx.end(200);
+    await p;
+    expect(got).toEqual(["1.1.1.1"]);
   });
 
   test("I2:块永不到达 → 15s 内以 idle 超时拒绝(而非全身超时)", async () => {
@@ -143,6 +166,7 @@ describe("ipradar 源", () => {
       { type: "done", invalid_lines: 3 },
     ]));
     fx.reply({ status: 200, body: "" });
+    fx.end(200);
     await p;
     expect(sections).toHaveLength(2);
     expect(sections[0].invalidLines).toBeUndefined();
