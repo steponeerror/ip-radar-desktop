@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { extractIps } from "./extractIps";
@@ -308,11 +309,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     return () => window.removeEventListener("keydown", handler);
   }, [view]);
 
-  // 版本检查:启动延迟 5s(避开 Rust 连接预热)+ 每 24h 一轮;限频/断网/解析异常全静默
-  // —— 失败不该打扰查询主流程。仅当 tag 比当前版本高才弹;同 tag 被关过不再弹,
-  // 进程内发现更高 tag(新 release)重新弹。
+  // 版本检查:启动延迟 5s(避开 Rust 连接预热)+ 每 24h 一轮 + 窗口唤起(获得
+  // 焦点)时节流重查 —— 托盘常驻进程会跨过发版时刻,只靠启动+24h 会一直看不到
+  // 新横幅(0.1.13 实报)。限频/断网/解析异常全静默 —— 失败不打扰查询主流程。
+  // 仅当 tag 比当前版本高才弹;同 tag 被关过不再弹,进程内发现更高 tag(新 release)重新弹。
   useEffect(() => {
     let disposed = false;
+    let lastCheck = Date.now(); // 节流零点 = 挂载时刻:首个焦点检查最早 mount+10min,不抢启动预热窗口
     const check = async () => {
       try {
         // GitHub REST 对无 User-Agent 的请求直接 403(实测),必带 UA 才能过下面的状态门
@@ -333,12 +336,23 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         /* 静默,下个周期再试 */
       }
     };
-    const first = window.setTimeout(() => void check(), 5000);
-    const every = window.setInterval(() => void check(), 24 * 60 * 60 * 1000);
+    const checkThrottled = () => {
+      if (Date.now() - lastCheck < 10 * 60_000) return;
+      lastCheck = Date.now();
+      void check();
+    };
+    const first = window.setTimeout(() => { lastCheck = Date.now(); void check(); }, 5000);
+    const every = window.setInterval(checkThrottled, 24 * 60 * 60 * 1000);
+    // 热键/托盘/单实例唤起都汇于 show()+focus → Focused(true) 一处全接,10min 节流
+    let unFocus: (() => void) | undefined;
+    void getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) checkThrottled();
+    }).then(u => { unFocus = u; });
     return () => {
       disposed = true;
       clearTimeout(first);
       clearInterval(every);
+      unFocus?.();
     };
   }, []);
 
