@@ -425,6 +425,20 @@ fn stored_server_url(app: &tauri::AppHandle) -> Option<String> {
         .filter(|u| !u.is_empty())
 }
 
+/// 开机自启动对账用(stored_server_url 同款读法):settings.json 的
+/// settings.autostart,缺失 → false。
+fn stored_autostart(app: &tauri::AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    app.store("settings.json")
+        .ok()
+        .and_then(|s| s.get("settings"))
+        .and_then(|v| {
+            v.get("autostart")
+                .and_then(|b| b.as_bool())
+        })
+        .unwrap_or(false)
+}
+
 /// Windows:焦点是否已真正离开本窗口树。WebView2 是子 HWND,点击内容会把
 /// Win32 焦点转给子窗口 → 父窗口 WM_KILLFOCUS → tao 发 Focused(false) ——
 /// 这是窗口内部的焦点转移,不是失活,不能触发失焦隐藏(v0.1.3 Windows
@@ -578,6 +592,29 @@ fn main() {
                 };
             if let Ok(mut cur) = app.state::<HotkeyState>().0.lock() {
                 *cur = Some(registered);
+            }
+
+            // ── 开机自启动对账:store 是唯一真相,但设置页只在开关值变化时
+            // 才调 set_autostart —— 注册表被清理工具抹掉/当次写入失败后,
+            // 开关显示"开"却永不重写,自启动静默失效(2026-10-01 Windows
+            // 实案:Run 与 StartupApproved 两条全空)。启动时按 store 强制
+            // 对齐系统真实状态;失败只打日志,下次启动再试。
+            // ponytail: 只在启动时对账,运行中 purge 要等下次启动才自愈。──
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let h = app.handle();
+                let want = stored_autostart(h);
+                let have = h.autolaunch().is_enabled().unwrap_or(false);
+                if want != have {
+                    let r = if want {
+                        h.autolaunch().enable()
+                    } else {
+                        h.autolaunch().disable()
+                    };
+                    if let Err(e) = r {
+                        eprintln!("autostart reconcile to {want} failed: {e}");
+                    }
+                }
             }
 
             // ── Blur → hide (window hides, process stays tray-resident) ──
