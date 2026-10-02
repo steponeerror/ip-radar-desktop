@@ -21,15 +21,31 @@ jobs:
       - run: npm ci
       - name: Version gate (tag ↔ tauri.conf.json)
         run: bash scripts/check-tag-version.sh "${GITHUB_REF_NAME}"
-      - uses: tauri-apps/tauri-action@v0
+      - run: npm run tauri build -- --bundles dmg
+      - name: Verify packaged macOS app before uploading
+        shell: bash
+        run: |
+          shopt -s nullglob
+          dmgs=(src-tauri/target/release/bundle/dmg/*.dmg)
+          [[ ${#dmgs[@]} -eq 1 ]] || exit 1
+          bash scripts/verify-macos-dmg.sh "${dmgs[0]}"
+      - name: Create draft release and upload verified DMG
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "IP Radar Desktop ${{ github.ref_name }}"
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          args: --bundles dmg
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          flags=(--draft)
+          [[ "$RELEASE_TAG" != *-* ]] || flags+=(--prerelease)
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --title "IP Radar Desktop $RELEASE_TAG" "${flags[@]}"
+          fi
+          for dmg in src-tauri/target/release/bundle/dmg/*.dmg; do
+            filename="$(basename "$dmg")"
+            asset="$RUNNER_TEMP/${filename// /.}"
+            cp "$dmg" "$asset"
+            gh release upload "$RELEASE_TAG" "$asset" --clobber
+          done
   # Windows 依赖 mac 先建好 release;只编裸 exe(免安装),不做 NSIS/MSI
   build-windows:
     needs: build-macos
