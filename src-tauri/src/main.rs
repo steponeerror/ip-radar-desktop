@@ -6,7 +6,7 @@ use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -32,10 +32,14 @@ fn geometry_is_broken(logical: (f64, f64), pos: (i32, i32)) -> bool {
 /// blur-hide 亦有 is_minimized 守卫(见 Focused(false));但任务栏态仍属 iconic,
 /// 恢复前台必须显式 unminimize,故此序不可倒。
 fn show(app: &tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    if let Err(error) = app.show() {
+        eprintln!("could not unhide application: {error}");
+    }
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
+        if let Err(error) = w.unminimize().and_then(|_| w.show()).and_then(|_| w.set_focus()) {
+            eprintln!("could not show main window: {error}");
+        }
     }
 }
 
@@ -487,7 +491,7 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec!["--background"]),
         ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -553,6 +557,7 @@ fn main() {
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
                         ..
                     } = event
                     {
@@ -666,8 +671,22 @@ fn main() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, _event| {
+            #[cfg(target_os = "macos")]
+            match _event {
+                // Finder/Dock sends Reopen to the running process; it does not
+                // start a second process for the single-instance callback.
+                tauri::RunEvent::Reopen { .. } => show(_app),
+                tauri::RunEvent::Ready
+                    if !std::env::args().any(|arg| arg == "--background") =>
+                {
+                    show(_app);
+                }
+                _ => {}
+            }
+        });
 }
 
 #[cfg(test)]
