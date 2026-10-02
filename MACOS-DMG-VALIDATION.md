@@ -35,7 +35,7 @@ against unsealed, correctly sealed, and tampered native fixture apps.
 | Rebuilt app signature metadata | Identifier `com.ipradar.desktop`; Info.plist bound; sealed resources v2 |
 | Launch from mounted rebuilt DMG using `open` | Succeeded; app process observed running |
 | `spctl --assess --type execute --verbose=4` | Rejected: ad-hoc build has no Developer ID / Apple notarization |
-| User manual launch / UI acceptance | Pending |
+| User manual launch / UI acceptance | User confirmed and authorized PR submission on 2026-10-02 |
 
 Local test artifact: `dist/verification/IP.Radar.Desktop_0.1.14_aarch64-fixed.dmg`.
 SHA-256:
@@ -51,5 +51,5 @@ disabled during these checks. Developer ID signing and Apple notarization
 remain necessary for distribution without a manual Gatekeeper exception.
 See the [Tauri signing guide](https://v2.tauri.app/distribute/sign/macos/).
 
-The original DMG and generated artifacts are not committed. A pull request to
-`master` is deferred until the user confirms manual launch succeeds.
+The original DMG and generated artifacts are not committed. The user confirmed
+manual launch and authorized a pull request to `master` on 2026-10-02.
