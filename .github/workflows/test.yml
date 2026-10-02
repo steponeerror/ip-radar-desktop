@@ -31,3 +31,9 @@ jobs:
       - run: npm test
       # 平台原生编译 + Rust 侧测试(含 Windows 覆盖配置完整性回归钉)
       - run: cargo test --manifest-path src-tauri/Cargo.toml
+      # Exercise the real bundle/sign/package path on macOS, including resource sealing.
+      - if: runner.os == 'macOS'
+        run: |
+          bash scripts/test-macos-dmg-validation.sh
+          npm run tauri build -- --bundles dmg
+          bash scripts/verify-macos-dmg.sh src-tauri/target/release/bundle/dmg/*.dmg

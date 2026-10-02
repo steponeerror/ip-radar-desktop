@@ -35,13 +35,15 @@ brew install --cask steponeerror/ipradar/ip-radar-desktop
 
 更新:`brew upgrade --cask ip-radar-desktop`。仅支持 Apple Silicon(arm64)Mac。
 
-次选:从 [Releases](../../releases) 直接下载 `.dmg`。应用未签名,仅自担风险者用,首次运行需执行:
+次选:从 [Releases](../../releases) 下载 `.dmg`,将应用拖入 Applications 后打开。macOS 构建对完整 `.app` 做 ad-hoc 签名以保证包内资源完整性,但尚无 Developer ID 签名或 Apple 公证。首次打开下载的应用仍可能被 Gatekeeper 拦截;确认来源可信后,在「系统设置 → 隐私与安全性」中选择「仍要打开」。
+
+若提示「已损坏」,请勿直接清除隔离属性。可先验证安装后的包:
 
 ```bash
-xattr -cr "/Applications/IP Radar Desktop.app"
+codesign --verify --deep --strict --verbose=2 "/Applications/IP Radar Desktop.app"
 ```
 
-(或右键 → 打开)
+旧版 0.1.14 DMG 可能只有 linker 临时签名、缺少资源封装签名,验证会失败;请使用修复后的构建。Ad-hoc 签名不等于 Apple 信任认证,面向公众免手动放行的发行仍需 Developer ID 和公证。
 
 **Windows**
 
@@ -103,13 +105,15 @@ brew install --cask steponeerror/ipradar/ip-radar-desktop
 
 To update: `brew upgrade --cask ip-radar-desktop`. Apple Silicon (arm64) Macs only.
 
-Fallback: download the `.dmg` directly from [Releases](../../releases). The app is unsigned — use at your own risk; before first run:
+Fallback: download the `.dmg` from [Releases](../../releases), drag the app into Applications, then open it. macOS builds ad-hoc sign the complete `.app` to seal its resources, but do not yet have Developer ID signing or Apple notarization. Gatekeeper may still block the first launch of a downloaded app; if you trust its source, use **System Settings → Privacy & Security → Open Anyway**.
+
+If macOS reports that the app is damaged, verify the installed bundle before removing any quarantine attributes:
 
 ```bash
-xattr -cr "/Applications/IP Radar Desktop.app"
+codesign --verify --deep --strict --verbose=2 "/Applications/IP Radar Desktop.app"
 ```
 
-(or right-click the app → Open)
+The original 0.1.14 DMG can fail this check because it has only a linker-generated signature with no resource seal; use a repaired build. Ad-hoc signing does not establish Apple trust. Public distribution without a manual exception requires Developer ID signing and notarization.
 
 **Windows**
 
@@ -145,3 +149,15 @@ npm run tauri build
 ### License
 
 [AGPL-3.0](LICENSE). Same license as the main project [IP Radar](https://github.com/steponeerror/ip-radar).
+
+### macOS packaging verification
+
+On macOS, run `npm run tauri build -- --bundles dmg`, then:
+
+```bash
+bash scripts/verify-macos-dmg.sh src-tauri/target/release/bundle/dmg/*.dmg
+```
+
+CI runs this check on pull requests and before release uploads. It verifies the DMG checksum and the signature of the app inside the mounted image. It does not assert Gatekeeper acceptance. Test a browser-downloaded (quarantined) copy separately for first-launch behavior. Never disable Gatekeeper globally to validate a release.
+
+The macOS-only `src-tauri/tauri.macos.conf.json` enables ad-hoc signing (`-`). For Developer ID distribution, configure a real signing identity and Apple notarization credentials following the [Tauri macOS signing guide](https://v2.tauri.app/distribute/sign/macos/), then verify with `spctl --assess --type execute --verbose=4` and `xcrun stapler validate` in addition to the integrity check.
