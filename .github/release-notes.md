@@ -1,6 +1,7 @@
 ## Chrome Extension
 
 - 新增 React + shadcn/ui（Base UI）+ Tailwind CSS 4 Chrome Extension。
+- 補齊擴充功能管理頁、工具列及分頁圖示，沿用 IP Radar 桌面版圖示。
 - 預設工具列小視窗，可改以瀏覽器分頁開啟，支援深色／淺色模式。
 - 批量查詢最多 100 個 IPv4／IPv6，整合 IP Radar 與 AbuseIPDB 分數、地區資料。
 - 本機保存最近 50 批搜尋紀錄，可搜尋、分頁及在前端匯出 CSV。
