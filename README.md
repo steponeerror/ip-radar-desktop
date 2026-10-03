@@ -161,3 +161,18 @@ bash scripts/verify-macos-dmg.sh src-tauri/target/release/bundle/dmg/*.dmg
 CI runs this check on pull requests and before release uploads. It verifies the DMG checksum and the signature of the app inside the mounted image. It does not assert Gatekeeper acceptance. Test a browser-downloaded (quarantined) copy separately for first-launch behavior. Never disable Gatekeeper globally to validate a release.
 
 The macOS-only `src-tauri/tauri.macos.conf.json` enables ad-hoc signing (`-`). For Developer ID distribution, configure a real signing identity and Apple notarization credentials following the [Tauri macOS signing guide](https://v2.tauri.app/distribute/sign/macos/), then verify with `spctl --assess --type execute --verbose=4` and `xcrun stapler validate` in addition to the integrity check.
+
+### macOS DMG layout in CI
+
+The macOS release and test build steps set `TAURI_BUNDLER_DMG_IGNORE_CI=true`
+so Tauri runs its Finder layout step even when GitHub sets `CI=true`.
+`src-tauri/tauri.macos.conf.json` fixes the installer window at 660×400,
+with the app on the left and the Applications shortcut on the right;
+Tauri's bundled DMG script uses 128-point icons.
+
+Release verification uses `scripts/verify-macos-dmg.sh <dmg> --require-layout`
+to reject images without Finder layout metadata (`.DS_Store`) or the
+Applications shortcut, in addition to validating the app signature. This
+metadata-presence check is not a pixel-level visual test. The layout step
+requires working Finder automation on the macOS runner; a failure stops the
+build rather than silently uploading a default-layout DMG.

@@ -40,5 +40,12 @@ check_image() {
 check_image linker-only 1
 codesign --force --sign - "$app"
 check_image sealed 0
+if bash "$script_dir/verify-macos-dmg.sh" "$work_dir/sealed.dmg" --require-layout \
+  > "$work_dir/layout.log" 2>&1; then
+  echo "FAIL: layout-less DMG passed --require-layout" >&2
+  exit 1
+fi
+grep -q 'Missing Finder layout' "$work_dir/layout.log"
+echo "PASS: missing Finder layout rejected"
 echo 'modified resource' > "$app/Contents/Resources/test.txt"
 check_image tampered 1
