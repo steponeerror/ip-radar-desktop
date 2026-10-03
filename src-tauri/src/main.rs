@@ -641,8 +641,10 @@ fn main() {
                 }
             }
 
-            // ── Blur → hide (window hides, process stays tray-resident) ──
-            // dev(WSLg)跳过:无托盘环境失焦即永久唤不回;release 正常注册。
+            // macOS keeps its window in the background on blur (normal Cmd-Tab).
+            // Windows minimizes on external focus loss, retaining its taskbar entry.
+            // Linux retains the existing release-only hide-to-tray behavior.
+            #[cfg(not(target_os = "macos"))]
             if !cfg!(debug_assertions) {
                 let win = app
                     .get_webview_window("main")
@@ -654,11 +656,15 @@ fn main() {
                         if !focus_left_window(&win_clone) {
                             return;
                         }
-                        // 最小化 → 停任务栏(skipTaskbar 已 false),不 hide;
-                        // blur-hide 只针对真失焦,否则点 — 会连任务栏入口一起消失。
+                        // A manual minimize also emits blur; do not act twice.
                         if win_clone.is_minimized().unwrap_or(false) {
                             return;
                         }
+                        #[cfg(target_os = "windows")]
+                        if let Err(error) = win_clone.minimize() {
+                            eprintln!("could not minimize main window on blur: {error}");
+                        }
+                        #[cfg(not(target_os = "windows"))]
                         let _ = win_clone.hide();
                     }
                 });
