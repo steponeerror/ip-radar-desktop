@@ -11,9 +11,9 @@ the user-reported failure.
 Changes:
 - Show the main window on macOS Ready for manual launches.
 - Handle macOS Reopen and unhide the application before showing/focusing it.
-- Pass --background for newly registered autostarts to retain background launch.
-- Handle tray left-button release once, instead of both press and release.
-- Report window activation errors rather than silently ignoring them.
+- On macOS only, pass --background for newly registered autostarts to retain background launch.
+- On macOS only, handle tray left-button release once, instead of both press and release.
+- On macOS only, report window activation errors rather than silently ignoring them.
 
 Validation:
 - Three existing Rust tests passed; frontend and release build passed.
@@ -28,3 +28,10 @@ The application in /Applications remains the published 0.1.15 build. The
 running test app is in src-tauri/target/release/bundle/macos. The candidate DMG
 is dist/verification/IP.Radar.Desktop_0.1.15_window-fix_aarch64.dmg; it is not a
 new published release. No Apple notarization was added.
+
+## Platform scope (2026-10-03)
+
+All new runtime behavior is compile-gated with `#[cfg(target_os = "macos")]`.
+Windows and Linux keep the original independent unminimize/show/focus calls,
+no autostart arguments, both tray left-button events, and Builder::run path.
+The macOS Ready/Reopen callback is not compiled on other platforms.
