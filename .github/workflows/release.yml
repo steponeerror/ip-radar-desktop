@@ -4,9 +4,65 @@ on:
     tags: ["v*"]
 permissions:
   contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
-  # macOS 先行:负责创建 draft release + 上传 DMG(便携语义,挂载即用)
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate release versions
+        run: bash scripts/check-tag-version.sh "${GITHUB_REF_NAME}"
+      - name: Create or verify draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" == true ]] || {
+              echo "Refusing to modify an already published release" >&2
+              exit 1
+            }
+          else
+            flags=(--draft --verify-tag)
+            [[ "$RELEASE_TAG" != *-* ]] || flags+=(--prerelease)
+            gh release create "$RELEASE_TAG" --title "IP Radar $RELEASE_TAG" --notes-file .github/release-notes.md "${flags[@]}"
+          fi
+
+  build-extension:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+        working-directory: extension
+      - run: npm test
+        working-directory: extension
+      - run: npm run build
+        working-directory: extension
+      - name: Package and attach Chrome extension
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          asset="$RUNNER_TEMP/IP.Radar.Chrome_${RELEASE_TAG}.zip"
+          (cd extension/dist && zip -r "$asset" .)
+          gh release upload "$RELEASE_TAG" "$asset" --clobber
+
+  # Platform builds upload independently to the prepared draft.
   build-macos:
+    needs: prepare-release
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,26 +88,21 @@ jobs:
           dmgs=(src-tauri/target/release/bundle/dmg/*.dmg)
           [[ ${#dmgs[@]} -eq 1 ]] || exit 1
           bash scripts/verify-macos-dmg.sh "${dmgs[0]}" --require-layout
-      - name: Create draft release and upload verified DMG
+      - name: Upload verified DMG to draft release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          flags=(--draft)
-          [[ "$RELEASE_TAG" != *-* ]] || flags+=(--prerelease)
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" --title "IP Radar Desktop $RELEASE_TAG" "${flags[@]}"
-          fi
           for dmg in src-tauri/target/release/bundle/dmg/*.dmg; do
             filename="$(basename "$dmg")"
             asset="$RUNNER_TEMP/${filename// /.}"
             cp "$dmg" "$asset"
             gh release upload "$RELEASE_TAG" "$asset" --clobber
           done
-  # Windows 依赖 mac 先建好 release;只编裸 exe(免安装),不做 NSIS/MSI
+  # Windows portable executable (no installer).
   build-windows:
-    needs: build-macos
+    needs: prepare-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

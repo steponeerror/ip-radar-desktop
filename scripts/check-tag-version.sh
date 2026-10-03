@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
-# CI 版本闸门:校验推送的 tag 与 src-tauri/tauri.conf.json 的 version 一致。
-# 背景:tag v0.1.10-beta.1 曾打出 IP.Radar.Desktop_0.1.9_aarch64.dmg — DMG 资产名
-# 取自 tauri.conf.json 的 version,漏 bump 时资产名与 tag 错配。此处让它直接 fail。
-# 用法: check-tag-version.sh <tag>   (exit 0 = 放行, exit 1 = tag 与版本不一致)
+# Keep release tags, desktop metadata and Chrome extension metadata aligned.
 set -euo pipefail
-
-tag="${1:?用法: check-tag-version.sh <tag>}"
-conf_version="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("src-tauri/tauri.conf.json","utf8")).version)')"
-
-# 剥离前导 v 后做全等字符串比较
-tag_stripped="${tag#v}"
-
-if [ "$tag_stripped" != "$conf_version" ]; then
-  echo "版本不一致: tag=${tag_stripped} conf=${conf_version}" >&2
-  echo "tag ${tag} 与 src-tauri/tauri.conf.json version ${conf_version} 不匹配 — 请 bump version 后重新打 tag。" >&2
-  exit 1
-fi
-
-echo "版本一致: tag=${tag_stripped} conf=${conf_version}"
+node --input-type=module - "${1:?Usage: check-tag-version.sh <tag>}" <<'JS'
+import {readFileSync} from 'node:fs';
+const tag = process.argv[2];
+if (!/^v\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(tag)) throw new Error(`Invalid release tag: ${tag}`);
+const expected = tag.slice(1);
+for (const file of ['package.json', 'package-lock.json', 'src-tauri/tauri.conf.json', 'extension/package.json', 'extension/package-lock.json', 'extension/public/manifest.json']) {
+  const data = JSON.parse(readFileSync(file, 'utf8'));
+  // Chrome manifest version cannot contain a prerelease suffix.
+  const version = file.endsWith('manifest.json') ? expected.split('-')[0] : expected;
+  if (data.version !== version || (data.packages && data.packages[''].version !== version)) {
+    throw new Error(`${file}: expected ${version}, found ${data.version}`);
+  }
+  console.log(`${file}: ${version}`);
+}
+JS

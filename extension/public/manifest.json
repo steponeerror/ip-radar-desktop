@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "IP Radar",
+  "version": "0.1.18",
+  "description": "批量 IP 情報查詢、AbuseIPDB 分數、查詢紀錄與 CSV 匯出。",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://api.abuseipdb.com/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_title": "IP Radar",
+    "default_popup": "index.html?mode=popup"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_ui": {
+    "page": "index.html?mode=tab&view=settings",
+    "open_in_tab": true
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
