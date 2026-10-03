@@ -33,7 +33,9 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       # Exercise the real bundle/sign/package path on macOS, including resource sealing.
       - if: runner.os == 'macOS'
+        env:
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           bash scripts/test-macos-dmg-validation.sh
           npm run tauri build -- --bundles dmg
-          bash scripts/verify-macos-dmg.sh src-tauri/target/release/bundle/dmg/*.dmg
+          bash scripts/verify-macos-dmg.sh src-tauri/target/release/bundle/dmg/*.dmg --require-layout

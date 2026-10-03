@@ -22,13 +22,16 @@ jobs:
       - name: Version gate (tag ↔ tauri.conf.json)
         run: bash scripts/check-tag-version.sh "${GITHUB_REF_NAME}"
       - run: npm run tauri build -- --bundles dmg
+        env:
+          # Preserve Finder layout even though GitHub sets CI=true.
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
       - name: Verify packaged macOS app before uploading
         shell: bash
         run: |
           shopt -s nullglob
           dmgs=(src-tauri/target/release/bundle/dmg/*.dmg)
           [[ ${#dmgs[@]} -eq 1 ]] || exit 1
-          bash scripts/verify-macos-dmg.sh "${dmgs[0]}"
+          bash scripts/verify-macos-dmg.sh "${dmgs[0]}" --require-layout
       - name: Create draft release and upload verified DMG
         shell: bash
         env:
