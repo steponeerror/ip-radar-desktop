@@ -413,9 +413,18 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         data-tauri-drag-region
         className="relative flex items-center justify-between border-b border-zinc-800 px-4 py-2"
       >
-        <span data-tauri-drag-region className={`${TECH_LABEL} select-none`}>
-          {t("app.title")}
-        </span>
+        <div data-tauri-drag-region className="flex items-center gap-1.5">
+          <img
+            src="/32x32.png"
+            alt=""
+            data-tauri-drag-region
+            draggable={false}
+            className="h-4 w-4 shrink-0 select-none"
+          />
+          <span data-tauri-drag-region className={`${TECH_LABEL} select-none`}>
+            {t("app.title")}
+          </span>
+        </div>
         <div className="flex items-center gap-0.5">
           <button
             aria-label="history"
