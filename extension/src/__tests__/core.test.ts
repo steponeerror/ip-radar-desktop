@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { parseIps, serverOrigin, defaults, type Row } from "../model";
+import {
+  parseIps,
+  serverOrigin,
+  defaults,
+  validateQuery,
+  normalizeState,
+  type Row,
+} from "../model";
 import { toCsv, csvCell } from "../csv";
 import { lookup } from "../api";
 afterEach(() => vi.unstubAllGlobals());
@@ -158,5 +165,25 @@ describe("API integration", () => {
     );
     expect(row.country).toBe("HK");
     expect(row.errors).toHaveLength(1);
+  });
+});
+
+describe("configurable query limit", () => {
+  it("counts unique IPs and accepts the exact configured boundary", () => {
+    expect(validateQuery("1.1.1.1,1.1.1.1", 1)).toEqual(["1.1.1.1"]);
+    expect(() => validateQuery("1.1.1.1,8.8.8.8", 1)).toThrow("超過單次");
+    const ips = Array.from(
+      { length: 1000 },
+      (_, i) => `10.0.${Math.floor(i / 256)}.${i % 256}`,
+    ).join("\n");
+    expect(validateQuery(ips, 1000)).toHaveLength(1000);
+    expect(() => validateQuery(ips, 999)).toThrow("超過單次");
+  });
+  it("rejects invalid limits and retains the default for old stored settings", () => {
+    for (const limit of [0, -1, 1.5, 1001, NaN, Infinity])
+      expect(() => validateQuery("1.1.1.1", limit)).toThrow("整數");
+    expect(normalizeState().settings.maxQueryIps).toBe(100);
+    expect(() => validateQuery("", 100)).toThrow("有效 IP");
+    expect(() => validateQuery("1.1.1.1 invalid", 100)).toThrow("有效 IP");
   });
 });

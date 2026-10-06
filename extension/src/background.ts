@@ -1,7 +1,8 @@
 import {
   activeBatch,
   normalizeState,
-  parseIps,
+  validateQuery,
+  validQueryLimit,
   validateSettings,
   type State,
   type Settings,
@@ -72,6 +73,8 @@ async function command(message: {
       for (const key of ["serverUrl", "radarKey", "abuseKey"] as const) {
         if (patch[key] != null) patch[key] = patch[key].trim();
       }
+      if ("maxQueryIps" in patch && !validQueryLimit(patch.maxQueryIps))
+        throw new Error("單次最大查詢數必須是 1–1,000 的整數。");
       state.settings = { ...state.settings, ...patch };
       if (patch.openInTab != null)
         await chrome.action.setPopup({
@@ -85,9 +88,7 @@ async function command(message: {
       validateSettings(state.settings);
       if (!state.settings.radarEnabled && !state.settings.abuseKey)
         throw new Error("請先設定 AbuseIPDB API Key。");
-      const { ips, invalid } = parseIps(message.text || "");
-      if (!ips.length || invalid.length || ips.length > 100)
-        throw new Error("請輸入 1–100 個有效 IP，並修正無效項目。");
+      const ips = validateQuery(message.text || "", state.settings.maxQueryIps);
       state.batches.unshift({
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),

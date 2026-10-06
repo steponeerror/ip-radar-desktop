@@ -17,6 +17,13 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+單次最大查詢數|单次最大查询数|Maximum IPs per lookup
+單次最大查詢數必須是 1–1,000 的整數。|单次最大查询数必须是 1–1,000 的整数。|The lookup limit must be a whole number between 1 and 1,000.
+預設 100；可設定 1–1,000，以去重後的 IP 數量計算，不會增加 API 配額。|默认 100；可设置 1–1,000，按去重后的 IP 数量计算，不会增加 API 配额。|Default 100; range 1–1,000. Counts unique IPs and does not increase your API quota.
+IPv4 / IPv6 · 換行、逗號或空格分隔|IPv4 / IPv6 · 换行、逗号或空格分隔|IPv4 / IPv6 · Separate with lines, commas or spaces
+超過單次查詢上限，請分批查詢。|超过单次查询上限，请分批查询。|The lookup limit is exceeded. Split the IPs into smaller batches.
+請輸入有效 IP，並修正無效項目。|请输入有效 IP，并修正无效项。|Enter valid IPs and correct invalid entries.
+
 儲存中…|保存中…|Saving…
 儲存失敗，請重新輸入。|保存失败，请重新输入。|Could not save. Please edit the field again.
 請完成連線設定。|请完成连接设置。|Complete the connection settings.

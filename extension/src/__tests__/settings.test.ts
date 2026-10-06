@@ -55,4 +55,17 @@ it("autosaves partial input and serializes rapid patches without losing other se
     (await command({ type: "start", text: "1.1.1.1" })).error,
   ).toBeTruthy();
   expect(stored.batches).toHaveLength(0);
+  expect(
+    (await command({ type: "settings", patch: { maxQueryIps: 0 } })).error,
+  ).toBeTruthy();
+  expect(stored.settings.maxQueryIps).toBe(100);
+  await command({
+    type: "settings",
+    patch: { maxQueryIps: 1, serverUrl: "https://example.com" },
+  });
+  expect(stored.settings.maxQueryIps).toBe(1);
+  expect(
+    (await command({ type: "start", text: "1.1.1.1,8.8.8.8" })).error,
+  ).toContain("超過單次");
+  expect(stored.batches).toHaveLength(0);
 });

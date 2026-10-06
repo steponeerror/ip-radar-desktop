@@ -51,6 +51,8 @@ import {
   initialState,
   parseIps,
   validateSettings,
+  validQueryLimit,
+  MAX_QUERY_IPS,
   type Settings,
 } from "./model";
 import { send, subscribe, openTab, isExtension, beginLookup } from "./client";
@@ -65,6 +67,8 @@ function SettingsForm({
 }) {
   const { t, errorText } = useI18n();
   const [draft, setDraft] = useState(settings);
+  const [limitInput, setLimitInput] = useState(String(settings.maxQueryIps));
+  const limitInvalid = !validQueryLimit(Number(limitInput));
   const [notice, setNotice] = useState("");
   const revision = useRef(0);
   useEffect(() => {
@@ -118,6 +122,33 @@ function SettingsForm({
               <NativeSelectOption value="zh-Hans">简体中文</NativeSelectOption>
               <NativeSelectOption value="en">English</NativeSelectOption>
             </NativeSelect>
+          </Field>
+          <Field data-invalid={limitInvalid}>
+            <FieldLabel htmlFor="query-limit">{t("單次最大查詢數")}</FieldLabel>
+            <Input
+              id="query-limit"
+              type="number"
+              min={1}
+              max={MAX_QUERY_IPS}
+              step={1}
+              value={limitInput}
+              aria-invalid={limitInvalid}
+              onChange={(e) => {
+                setLimitInput(e.target.value);
+                const value = Number(e.target.value);
+                if (validQueryLimit(value)) update("maxQueryIps", value);
+              }}
+            />
+            <FieldDescription>
+              {t(
+                "預設 100；可設定 1–1,000，以去重後的 IP 數量計算，不會增加 API 配額。",
+              )}
+            </FieldDescription>
+            {limitInvalid && (
+              <FieldError>
+                {t("單次最大查詢數必須是 1–1,000 的整數。")}
+              </FieldError>
+            )}
           </Field>
           <Field orientation="horizontal">
             <FieldLabel htmlFor="radar-enabled">IP Radar Server</FieldLabel>
@@ -360,7 +391,8 @@ export default function App() {
               <CardHeader>
                 <CardTitle>{t("批量查詢 IP")}</CardTitle>
                 <CardDescription>
-                  {t("IPv4 / IPv6 · 換行、逗號或空格分隔 · 最多 100 個")}
+                  {t("IPv4 / IPv6 · 換行、逗號或空格分隔")} ·{" "}
+                  {t("單次最大查詢數")}：{state.settings.maxQueryIps}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -383,8 +415,10 @@ export default function App() {
                         {parsed.invalid.slice(0, 3).join("、")}
                       </FieldError>
                     )}
-                    {parsed.ips.length > 100 && (
-                      <FieldError>{t("超過 100 個，請分批查詢。")}</FieldError>
+                    {parsed.ips.length > state.settings.maxQueryIps && (
+                      <FieldError>
+                        {t("超過單次查詢上限，請分批查詢。")}
+                      </FieldError>
                     )}
                   </Field>
                 </FieldGroup>
@@ -410,7 +444,7 @@ export default function App() {
                         busy ||
                         !parsed.ips.length ||
                         !!parsed.invalid.length ||
-                        parsed.ips.length > 100
+                        parsed.ips.length > state.settings.maxQueryIps
                       }
                       onClick={() => void start()}
                     >

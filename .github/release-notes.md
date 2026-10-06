@@ -1,3 +1,9 @@
+## 本次新增
+
+- 新增「單次最大查詢數」設定：預設 100，可調整 1–1,000，輸入後自動儲存。
+- 以去重後的 IP 數量計算，前端與背景程式均驗證；超限時阻止查詢並提示分批，不會截斷清單。
+- 本機批量上限不會改變 Radar／AbuseIPDB 的服務端配額或速率限制。
+
 ## Chrome Extension 更新
 
 - 查詢判定、分類、信心值與桌面版共用邏輯；完整保留 Radar 與 AbuseIPDB 來源資料。
@@ -11,13 +17,13 @@
 
 ## 安裝
 
-- **Chrome**：下載 `IP.Radar.Chrome_v0.1.19-beta.1.zip` 並解壓；開啟 `chrome://extensions` → 開發人員模式 → 載入未封裝項目，選擇包含 manifest.json 的資料夾。更新既有安裝後請重新載入擴充功能。
+- **Chrome**：下載 `IP.Radar.Chrome_v0.1.19-beta.2.zip` 並解壓；開啟 `chrome://extensions` → 開發人員模式 → 載入未封裝項目，選擇包含 manifest.json 的資料夾。更新既有安裝後請重新載入擴充功能。
 - **macOS**：下載 DMG，掛載後開啟或拖入 Applications。
 - **Windows**：下載 portable EXE，直接執行。
 
 ## 驗證與注意事項
 
-- 插件 26 項離線測試、桌面版 93 項測試通過，兩者 TypeScript 與前端生產建置通過。
+- 插件 28 項離線測試、桌面版 93 項測試通過，兩者 TypeScript 與前端生產建置通過。
 - 實際 API 測試需額外提供金鑰，CI 預設跳過；API 原始文字不會自動翻譯。
 - 這是測試版本，尚未上架 Chrome Web Store。Chrome 原生權限對話框可能使工具列 popup 關閉，屬於恢復原流程後的已知行為。
 

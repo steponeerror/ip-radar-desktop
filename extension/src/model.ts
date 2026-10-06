@@ -7,6 +7,7 @@ export interface Settings {
   abuseEnabled: boolean;
   theme: "dark" | "light";
   openInTab: boolean;
+  maxQueryIps: number;
   language: import("./i18n").Language;
 }
 export const defaults: Settings = {
@@ -17,6 +18,7 @@ export const defaults: Settings = {
   abuseEnabled: true,
   theme: "dark",
   openInTab: false,
+  maxQueryIps: 100,
   language: "auto",
 };
 export interface Row {
@@ -77,6 +79,24 @@ export function parseIps(text: string) {
   }
   return { ips: [...valid], invalid };
 }
+export const MAX_QUERY_IPS = 1000;
+export function validQueryLimit(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= MAX_QUERY_IPS
+  );
+}
+export function validateQuery(text: string, limit: number) {
+  if (!validQueryLimit(limit))
+    throw new Error("單次最大查詢數必須是 1–1,000 的整數。");
+  const { ips, invalid } = parseIps(text);
+  if (!ips.length || invalid.length)
+    throw new Error("請輸入有效 IP，並修正無效項目。");
+  if (ips.length > limit) throw new Error("超過單次查詢上限，請分批查詢。");
+  return ips;
+}
 export function serverOrigin(url: string) {
   let parsed: URL;
   try {
@@ -95,6 +115,8 @@ export function serverOrigin(url: string) {
   return `${parsed.protocol}//${parsed.hostname}/*`;
 }
 export function validateSettings(s: Settings) {
+  if (!validQueryLimit(s.maxQueryIps))
+    throw new Error("單次最大查詢數必須是 1–1,000 的整數。");
   if (s.radarEnabled) serverOrigin(s.serverUrl);
   if (!s.radarEnabled && !s.abuseEnabled)
     throw new Error("請至少啟用一個查詢來源。");
@@ -102,7 +124,13 @@ export function validateSettings(s: Settings) {
 
 export function normalizeState(state?: State): State {
   return {
-    settings: { ...defaults, ...state?.settings },
+    settings: {
+      ...defaults,
+      ...state?.settings,
+      maxQueryIps: validQueryLimit(state?.settings?.maxQueryIps)
+        ? state.settings.maxQueryIps
+        : defaults.maxQueryIps,
+    },
     batches: state?.batches ?? [],
   };
 }

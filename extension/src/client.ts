@@ -3,6 +3,7 @@ import {
   normalizeState,
   serverOrigin,
   validateSettings,
+  validateQuery,
   type Settings,
   type State,
 } from "./model";
@@ -52,6 +53,7 @@ export async function beginLookup(
   settings: Settings,
 ): Promise<State> {
   validateSettings(settings);
+  validateQuery(text, settings.maxQueryIps);
   if (
     isExtension &&
     settings.radarEnabled &&
