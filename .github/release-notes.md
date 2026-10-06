@@ -17,7 +17,7 @@
 
 ## 安裝
 
-- **Chrome**：下載 `IP.Radar.Chrome_v0.1.19-beta.2.zip` 並解壓；開啟 `chrome://extensions` → 開發人員模式 → 載入未封裝項目，選擇包含 manifest.json 的資料夾。更新既有安裝後請重新載入擴充功能。
+- **Chrome**：下載 `IP.Radar.Chrome_v0.1.19.zip` 並解壓；開啟 `chrome://extensions` → 開發人員模式 → 載入未封裝項目，選擇包含 manifest.json 的資料夾。更新既有安裝後請重新載入擴充功能。
 - **macOS**：下載 DMG，掛載後開啟或拖入 Applications。
 - **Windows**：下載 portable EXE，直接執行。
 
@@ -25,6 +25,6 @@
 
 - 插件 28 項離線測試、桌面版 93 項測試通過，兩者 TypeScript 與前端生產建置通過。
 - 實際 API 測試需額外提供金鑰，CI 預設跳過；API 原始文字不會自動翻譯。
-- 這是測試版本，尚未上架 Chrome Web Store。Chrome 原生權限對話框可能使工具列 popup 關閉，屬於恢復原流程後的已知行為。
+- 此版本尚未上架 Chrome Web Store。Chrome 原生權限對話框可能使工具列 popup 關閉，屬於恢復原流程後的已知行為。
 
-此版本保持 **Draft + Pre-release**。CI 將分別上傳 Chrome ZIP、macOS DMG、Windows EXE，待建置完成後由維護者手動 Publish。
+此版本保持 **Draft**。CI 將分別上傳 Chrome ZIP、macOS DMG、Windows EXE，待建置完成後由維護者手動 Publish。
