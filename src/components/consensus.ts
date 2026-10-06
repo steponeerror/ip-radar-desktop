@@ -9,15 +9,10 @@
 // - reserved 优先于一切;弃权/错误/缺 key 不参与;全不参与 = none。
 // L1/L2 视图层只消费,不改判定。
 import { getSources } from "../sources/registry";
-import type { SourceSection, SourceClaims, VerdictCode } from "../sources/_types";
+import type { SourceSection, SourceClaims } from "../sources/_types";
 
-export type Consensus =
-  | { kind: "reserved" }
-  | { kind: "disagreed" }
-  | { kind: "verdict"; code: VerdictCode; value?: number }
-  | { kind: "none" };
-
-// 全票制无“更坏”概念,RANK 已删(2026-09-28)。
+export type { Consensus } from "../../shared/intelligence";
+import { consensusFromClaims, countryFromClaims } from "../../shared/intelligence";
 
 function claimsOfAll(sections: SourceSection[]): SourceClaims[] {
   const srcMap = new Map(getSources().map(s => [s.id, s]));
@@ -29,33 +24,9 @@ function claimsOfAll(sections: SourceSection[]): SourceClaims[] {
   return out;
 }
 
-export function consensusOf(sections: SourceSection[]): Consensus {
-  const all = claimsOfAll(sections);
-  if (all.some(c => c.reserved)) return { kind: "reserved" };
-  const verdicts = all
-    .map(c => c.verdict)
-    .filter((v): v is { code: VerdictCode; value?: number } => !!v);
-  if (verdicts.length === 0) return { kind: "none" };
-  // 全票制:唯一 code 才出 verdict,任何混合 = 分歧(用户拍板 2026-09-28:
-  // 同时都恶意才显恶意;可疑×恶意不再塌缩到恶意)
-  const codes = new Set(verdicts.map(v => v.code));
-  if (codes.size > 1) return { kind: "disagreed" };
-  const code = verdicts[0].code;
-  // 恶意定罪需全员实际主张:任一参与源弃权(claimsOf 返回但无 verdict)= 不支持 → 分歧
-  if (code === "malicious" && verdicts.length < all.length) return { kind: "disagreed" };
-  let value: number | undefined;
-  if (code !== "benign") {
-    const vals = verdicts.map(v => v.value)
-      .filter((n): n is number => typeof n === "number");
-    if (vals.length > 0) value = Math.max(...vals);
-  }
-  return { kind: "verdict", code, value };
+export function consensusOf(sections: SourceSection[]) {
+  return consensusFromClaims(claimsOfAll(sections));
 }
-
-export function agreedCountry(sections: SourceSection[]): string | undefined {
-  const countries = claimsOfAll(sections)
-    .map(c => c.country)
-    .filter((c): c is string => !!c);
-  if (countries.length === 0) return undefined;
-  return countries.every(c => c === countries[0]) ? countries[0] : undefined;
+export function agreedCountry(sections: SourceSection[]) {
+  return countryFromClaims(claimsOfAll(sections));
 }

@@ -3,9 +3,6 @@
 // 结构分区 = 直角 90°(brutalist §5 几何,分区是 hairline 圈出的 zone 不是圆角盒)。
 // .tsx:ConsensusBadge 纯展示组件住这里(L1/L2 共用,props 传 t,不引 i18n 上下文)。
 import type { Consensus } from "./consensus";
-import type { SourceSection } from "../sources/_types";
-import type { LookupResult } from "../sources/ipradar";
-import type { AbuseSection } from "../sources/abuseipdb";
 
 export const VERDICT_STYLE: Record<string, string> = {
   malicious: "bg-red-500/15 text-red-300 ring-1 ring-red-500/30",
@@ -24,60 +21,28 @@ export const TECH_LABEL = "font-mono text-[10px] uppercase tracking-[0.1em] text
  *  与 VERDICT_STYLE 同构(bg + text + ring-1),半径同 4px rounded(由使用方拼)。 */
 export const INFO_STYLE = "bg-zinc-700/50 text-zinc-400 ring-1 ring-zinc-600/40";
 
-/** 威胁分类徽章模型(ipradar classifications 的 detected 项,type 原样透传)。 */
-export interface ClassBadge { type: string; verdict: string; confidence: number }
-
-/** info 徽章模型:cdn ← ipradar threat.is_cdn;torExit ← abuseipdb isTor;usage ← abuseipdb usageType 原文。 */
-export interface InfoBadge { kind: "cdn" | "torExit" | "usage"; value?: string }
-
-/** info 三件套固定秩:cdn → torExit → usage。运行时 sections 序 = 调度器并发完成序,
- *  输出序不能依赖输入序(否则 cdn 可能落到 Tor 出口之后)。 */
-const INFO_RANK: Record<InfoBadge["kind"], number> = { cdn: 0, torExit: 1, usage: 2 };
-
-/** 从 sections 抽徽章带数据(纯函数,不引 i18n):classifications 仅 detected、按
- *  confidence 降序(同分按 type 字典序,全序确定);info 三件套按固定秩 cdn→torExit→usage
- *  (不依赖 sections 序)且与分类命中不去重(tor 分类 + TOR 出口并存 = 双源佐证);
- *  needs-key/error 源的徽章自然缺失,不占位。 */
-export function badgesOf(sections: SourceSection[]): { classes: ClassBadge[]; infos: InfoBadge[] } {
-  const classes: ClassBadge[] = [];
-  const infos: InfoBadge[] = [];
-  for (const sec of sections) {
-    if (sec.status !== "ok") continue;
-    if (sec.sourceId === "ipradar") {
-      const d = sec.data as LookupResult;
-      for (const [type, c] of Object.entries(d.classifications ?? {})) {
-        if (c.detected) classes.push({ type, verdict: c.verdict, confidence: c.confidence });
-      }
-      if (d.threat?.is_cdn) infos.push({ kind: "cdn" });
-    } else if (sec.sourceId === "abuseipdb") {
-      const a = sec.data as AbuseSection;
-      if (a.isTor) infos.push({ kind: "torExit" });
-      if (a.usageType) infos.push({ kind: "usage", value: a.usageType });
-    }
-  }
-  classes.sort((x, y) => y.confidence - x.confidence || (x.type < y.type ? -1 : x.type > y.type ? 1 : 0));
-  infos.sort((x, y) => INFO_RANK[x.kind] - INFO_RANK[y.kind]);
-  return { classes, infos };
-}
+export { badgesOf } from "../../shared/intelligence";
+export type { ClassBadge, InfoBadge } from "../../shared/intelligence";
+import { abuseScoreBand, confidenceBand } from "../../shared/intelligence";
 
 /** AbuseIPDB 分数条色阶:0-24 emerald / 25-59 amber / 60+ red。 */
 export function scoreTone(score: number): string {
-  if (score >= 60) return "bg-red-500";
-  if (score >= 25) return "bg-amber-500";
+  if (abuseScoreBand(score) === "danger") return "bg-red-500";
+  if (abuseScoreBand(score) === "warning") return "bg-amber-500";
   return "bg-emerald-500";
 }
 
 /** 同色阶的文字版(手风琴 header 的分数徽章)。 */
 export function scoreTextTone(score: number): string {
-  if (score >= 60) return "text-red-300";
-  if (score >= 25) return "text-amber-300";
+  if (abuseScoreBand(score) === "danger") return "text-red-300";
+  if (abuseScoreBand(score) === "warning") return "text-amber-300";
   return "text-emerald-300";
 }
 
 /** MergedField 置信度文字色阶(server threatDisplay.ts confTextColor 同款):≥70 绿/30–69 琥珀/<30 红。 */
 export function confTone(conf: number): string {
-  if (conf >= 70) return "text-emerald-400";
-  if (conf >= 30) return "text-amber-400";
+  if (confidenceBand(conf) === "success") return "text-emerald-400";
+  if (confidenceBand(conf) === "warning") return "text-amber-400";
   return "text-red-400";
 }
 

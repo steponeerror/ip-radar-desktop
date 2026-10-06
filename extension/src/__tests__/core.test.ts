@@ -42,12 +42,14 @@ describe("CSV export", () => {
       { ip: "8.8.8.8", errors: [], queriedAt: "today", status: "done" },
     ];
     const csv = toCsv(rows);
-    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(
+      csv.startsWith('\uFEFF"IP","地區代碼","城市","AbuseIPDB 分數"'),
+    ).toBe(true);
     expect(csv).toContain('"0"');
     expect(csv).toContain('"false"');
     expect(csv).toContain('"ISP,""A""\nB"');
     expect(csv).toContain('"8.8.8.8","",""');
-    expect(csv).not.toContain("城市");
+    expect(csv).toContain("城市");
   });
   it("neutralizes formula injection", () => {
     for (const s of ["=1+1", "+cmd", "-cmd", "@SUM(A1)", " \t=cmd", "\tcmd"])
@@ -95,7 +97,7 @@ describe("API integration", () => {
     );
     expect(row).toMatchObject({
       score: 0,
-      country: "AU",
+      country: undefined,
       abuseCountry: "US",
       isp: "Radar ISP",
       errors: [],

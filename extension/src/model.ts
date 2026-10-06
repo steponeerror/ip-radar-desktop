@@ -1,3 +1,4 @@
+import type { SourceSection } from "../../shared/intelligence";
 export interface Settings {
   serverUrl: string;
   radarKey: string;
@@ -6,6 +7,7 @@ export interface Settings {
   abuseEnabled: boolean;
   theme: "dark" | "light";
   openInTab: boolean;
+  language: import("./i18n").Language;
 }
 export const defaults: Settings = {
   serverUrl: "http://127.0.0.1:8000",
@@ -15,6 +17,7 @@ export const defaults: Settings = {
   abuseEnabled: true,
   theme: "dark",
   openInTab: false,
+  language: "auto",
 };
 export interface Row {
   ip: string;
@@ -31,6 +34,8 @@ export interface Row {
   radarCountry?: string;
   abuseCountry?: string;
   errors: string[];
+  /** Absent in pre-detail history; never invent missing source data. */
+  sections?: SourceSection[];
 }
 export interface Batch {
   id: string;
@@ -73,7 +78,12 @@ export function parseIps(text: string) {
   return { ips: [...valid], invalid };
 }
 export function serverOrigin(url: string) {
-  const parsed = new URL(url);
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Server 請使用 http(s) 網址，不包含帳密、查詢參數或 #。");
+  }
   if (
     !["http:", "https:"].includes(parsed.protocol) ||
     parsed.username ||
@@ -88,4 +98,11 @@ export function validateSettings(s: Settings) {
   if (s.radarEnabled) serverOrigin(s.serverUrl);
   if (!s.radarEnabled && !s.abuseEnabled)
     throw new Error("請至少啟用一個查詢來源。");
+}
+
+export function normalizeState(state?: State): State {
+  return {
+    settings: { ...defaults, ...state?.settings },
+    batches: state?.batches ?? [],
+  };
 }

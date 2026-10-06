@@ -1,6 +1,6 @@
 import {
   activeBatch,
-  initialState,
+  normalizeState,
   parseIps,
   validateSettings,
   type State,
@@ -12,8 +12,8 @@ let serial: Promise<unknown> = Promise.resolve();
 let running = false;
 let controller: AbortController | undefined;
 async function read(): Promise<State> {
-  return (
-    ((await chrome.storage.local.get(KEY))[KEY] as State) || initialState()
+  return normalizeState(
+    (await chrome.storage.local.get(KEY))[KEY] as State | undefined,
   );
 }
 function mutate<T>(fn: (state: State) => T | Promise<T>): Promise<T> {
@@ -62,17 +62,21 @@ async function command(message: {
   type: string;
   text?: string;
   settings?: Settings;
+  patch?: Partial<Settings>;
   id?: string;
 }) {
   if (message.type === "get") return read();
   if (message.type === "settings") {
-    const s = message.settings!;
-    validateSettings(s);
-    await mutate((state) => {
-      state.settings = s;
-    });
-    await chrome.action.setPopup({
-      popup: s.openInTab ? "" : "index.html?mode=popup",
+    await mutate(async (state) => {
+      const patch = { ...(message.patch ?? message.settings ?? {}) };
+      for (const key of ["serverUrl", "radarKey", "abuseKey"] as const) {
+        if (patch[key] != null) patch[key] = patch[key].trim();
+      }
+      state.settings = { ...state.settings, ...patch };
+      if (patch.openInTab != null)
+        await chrome.action.setPopup({
+          popup: state.settings.openInTab ? "" : "index.html?mode=popup",
+        });
     });
   } else if (message.type === "start") {
     await mutate((state) => {

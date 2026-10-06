@@ -7,18 +7,11 @@
 // 鉴权:有 key 则带 Authorization: Bearer;无 key 照发(旧版 server 放行,新版 401 由 UI 引导)。
 // warming(503 + error.code==="warming")只透传 code,重发轮询归 UI 层 —— 源保持无状态。
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { QuerySource, SourceSection, Settings, VerdictCode } from "./_types";
+import type { QuerySource, SourceSection, Settings } from "./_types";
 
 // 类型精简自 server frontend/src/api.ts,字段语义一致
-export interface LookupResult {
-  ip: string; is_reserved?: boolean; error?: string;
-  country?: { value: string; confidence?: number }; city?: { value: string; confidence?: number }; city_zh?: string | null;
-  asn?: { value: number | string; confidence?: number }; as_name?: { value: string; confidence?: number };
-  ip_range?: { value: string; confidence?: number };
-  threat?: { verdict: string; confidence: number; types: string[]; is_cdn: boolean };
-  location?: { lat: number; lon: number; accuracy_radius?: number } | null;
-  classifications?: Record<string, { verdict: string; detected: boolean; confidence: number; malware_names: string[] }>;
-}
+export type { LookupResult } from "../../shared/intelligence";
+import { radarClaims } from "../../shared/intelligence";
 
 function authHeaders(s: Settings): Record<string, string> {
   return s.ipradarKey ? { Authorization: `Bearer ${s.ipradarKey}` } : {};
@@ -38,21 +31,9 @@ function errFromReply(r: HttpReply): SourceSection {
   return errSection(r.status, env?.error?.code, env?.error?.message ?? `HTTP ${r.status}`, env?.error?.retry_after);
 }
 
-const VERDICT_CODES: readonly VerdictCode[] = ["malicious", "suspicious", "benign"];
-
 export const ipradarSource: QuerySource = {
   id: "ipradar", label: "IP Radar",
-  claimsOf(sec) {
-    if (sec.status !== "ok") return undefined;
-    const d = sec.data as LookupResult;
-    const v = d.threat?.verdict;
-    const code = VERDICT_CODES.includes(v as VerdictCode) ? (v as VerdictCode) : undefined;
-    return {
-      verdict: code ? { code, value: d.threat?.confidence } : undefined,
-      country: d.country?.value?.trim().toUpperCase(),
-      reserved: !!d.is_reserved,
-    };
-  },
+  claimsOf: radarClaims,
   async *queryMany(ips, s) {
     const base = s.serverUrl.replace(/\/+$/, "");
     // invoke 不可中止,无 AbortController;被新查询取代的残留流由 App 的 epoch

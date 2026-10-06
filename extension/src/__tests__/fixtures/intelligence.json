@@ -1,0 +1,573 @@
+[
+  {
+    "radar": {
+      "ip": "85.217.149.40",
+      "country": {
+        "value": "CA",
+        "confidence": 97,
+        "algorithm": "logodds",
+        "sources": [
+          {
+            "source": "dbip_city",
+            "value": "CA",
+            "reliability": 0.8,
+            "authoritative": false
+          },
+          {
+            "source": "dshield",
+            "value": "BG",
+            "reliability": 0.7,
+            "authoritative": false
+          },
+          {
+            "source": "geolite_city",
+            "value": "CA",
+            "reliability": 0.85,
+            "authoritative": false
+          },
+          {
+            "source": "ipinfo_lite",
+            "value": "CA",
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": "NL",
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ],
+        "alternatives": [
+          {
+            "value": "CA",
+            "probability": 97.2
+          },
+          {
+            "value": "NL",
+            "probability": 2.0
+          },
+          {
+            "value": "BG",
+            "probability": 0.5
+          }
+        ]
+      },
+      "city": {
+        "value": "Beauharnois",
+        "confidence": 100,
+        "algorithm": "voting",
+        "sources": [
+          {
+            "source": "dbip_city",
+            "value": "Beauharnois",
+            "reliability": 0.8,
+            "authoritative": false
+          },
+          {
+            "source": "geolite_city",
+            "value": "Beauharnois",
+            "reliability": 0.85,
+            "authoritative": false
+          }
+        ]
+      },
+      "city_zh": null,
+      "location": {
+        "lat": 45.3161,
+        "lon": -73.8736,
+        "accuracy_radius": 20
+      },
+      "asn": {
+        "value": 209334,
+        "confidence": 100,
+        "algorithm": "logodds",
+        "sources": [
+          {
+            "source": "dataplane",
+            "value": 209334,
+            "reliability": 0.7,
+            "authoritative": false
+          },
+          {
+            "source": "ipinfo_lite",
+            "value": 209334,
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": 209334,
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ],
+        "alternatives": [
+          {
+            "value": 209334,
+            "probability": 99.8
+          }
+        ]
+      },
+      "as_name": {
+        "value": "Modat B.V.",
+        "confidence": 95,
+        "algorithm": "authority",
+        "sources": [
+          {
+            "source": "dataplane",
+            "value": "MODAT-01 Modat B.V.",
+            "reliability": 0.7,
+            "authoritative": false
+          },
+          {
+            "source": "dshield",
+            "value": "MAYAK",
+            "reliability": 0.7,
+            "authoritative": false
+          },
+          {
+            "source": "ipinfo_lite",
+            "value": "Modat B.V.",
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": "MODAT-01",
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ]
+      },
+      "ip_range": {
+        "value": "85.217.149.0/24",
+        "confidence": 85,
+        "algorithm": "specificity",
+        "sources": [
+          {
+            "source": "ipinfo_lite",
+            "value": "85.217.149.0/24",
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": "85.217.149.0/24",
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ]
+      },
+      "is_isp": false,
+      "threat": {
+        "verdict": "malicious",
+        "confidence": 100,
+        "types": [
+          "abuse-reports",
+          "blacklist",
+          "scanner"
+        ],
+        "is_cdn": false
+      },
+      "classifications": {
+        "abuse-reports": {
+          "type": "abuse-reports",
+          "verdict": "malicious",
+          "detected": true,
+          "confidence": 65,
+          "algorithm": "logodds",
+          "corroborated": false,
+          "reporter_total": 0,
+          "verdict_conflict": false,
+          "has_archive": false,
+          "malware_names": [],
+          "details": [
+            {
+              "source": "abuseipdb",
+              "reliability": 0.65,
+              "verdict": "malicious",
+              "first_seen": "2026-10-05T00:15:52+00:00",
+              "last_seen": "2026-10-05T00:15:52+00:00"
+            }
+          ],
+          "sources": [
+            {
+              "source": "abuseipdb",
+              "value": true,
+              "reliability": 0.65,
+              "authoritative": false
+            }
+          ]
+        },
+        "blacklist": {
+          "type": "blacklist",
+          "verdict": "malicious",
+          "detected": true,
+          "confidence": 94,
+          "algorithm": "logodds",
+          "corroborated": true,
+          "reporter_total": 8,
+          "verdict_conflict": false,
+          "has_archive": false,
+          "malware_names": [],
+          "details": [
+            {
+              "source": "binarydefense",
+              "reliability": 0.65,
+              "verdict": "malicious"
+            },
+            {
+              "source": "ciarm",
+              "reliability": 0.6,
+              "verdict": "malicious"
+            },
+            {
+              "source": "emerging_threats",
+              "reliability": 0.85,
+              "verdict": "malicious"
+            },
+            {
+              "source": "firehol",
+              "reliability": 0.5,
+              "verdict": "malicious",
+              "tags": [
+                "firehol_level1",
+                "firehol_level2"
+              ]
+            },
+            {
+              "source": "ipsum",
+              "reliability": 0.55,
+              "verdict": "malicious",
+              "reporter_count": 8
+            }
+          ],
+          "sources": [
+            {
+              "source": "ciarm",
+              "value": true,
+              "reliability": 0.6,
+              "authoritative": false
+            },
+            {
+              "source": "emerging_threats",
+              "value": true,
+              "reliability": 0.85,
+              "authoritative": false
+            },
+            {
+              "source": "binarydefense",
+              "value": true,
+              "reliability": 0.65,
+              "authoritative": false
+            },
+            {
+              "source": "ipsum",
+              "value": true,
+              "reliability": 0.55,
+              "authoritative": false
+            },
+            {
+              "source": "firehol",
+              "value": true,
+              "reliability": 0.5,
+              "authoritative": false
+            }
+          ]
+        },
+        "scanner": {
+          "type": "scanner",
+          "verdict": "malicious",
+          "detected": true,
+          "confidence": 92,
+          "algorithm": "logodds",
+          "corroborated": true,
+          "reporter_total": 343,
+          "verdict_conflict": false,
+          "has_archive": false,
+          "malware_names": [],
+          "details": [
+            {
+              "source": "dataplane",
+              "reliability": 0.7,
+              "verdict": "malicious",
+              "first_seen": "2026-10-04 15:39:48",
+              "last_seen": "2026-10-04 15:39:48",
+              "native_categories": [
+                "dnsrd"
+              ]
+            },
+            {
+              "source": "dataplane",
+              "reliability": 0.7,
+              "verdict": "malicious",
+              "first_seen": "2026-10-04 14:38:11",
+              "last_seen": "2026-10-04 14:38:11",
+              "native_categories": [
+                "smtpgreet"
+              ]
+            },
+            {
+              "source": "dshield",
+              "reliability": 0.7,
+              "verdict": "malicious",
+              "reporter_count": 343
+            },
+            {
+              "source": "f3csystems",
+              "reliability": 0.6,
+              "verdict": "malicious",
+              "first_seen": "2026-10-02 13:08:53",
+              "last_seen": "2026-10-02 13:08:53",
+              "extra": {
+                "scan_count": 2,
+                "country": "CA"
+              },
+              "native_categories": [
+                "N/A"
+              ]
+            },
+            {
+              "source": "turris_greylist",
+              "reliability": 0.6,
+              "verdict": "malicious",
+              "native_categories": [
+                "ftp",
+                "http",
+                "smtp",
+                "telnet"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "source": "dshield",
+              "value": true,
+              "reliability": 0.7,
+              "authoritative": false
+            },
+            {
+              "source": "f3csystems",
+              "value": true,
+              "reliability": 0.6,
+              "authoritative": false
+            },
+            {
+              "source": "dataplane",
+              "value": true,
+              "reliability": 0.7,
+              "authoritative": false
+            },
+            {
+              "source": "turris_greylist",
+              "value": true,
+              "reliability": 0.6,
+              "authoritative": false
+            }
+          ]
+        }
+      },
+      "attributes": {
+        "as_domain": [
+          {
+            "source": "ipinfo_lite",
+            "value": "modat.io",
+            "native_type": null
+          }
+        ]
+      },
+      "is_reserved": false
+    },
+    "abuse": {
+      "data": {
+        "ipAddress": "85.217.149.40",
+        "isPublic": true,
+        "ipVersion": 4,
+        "isWhitelisted": false,
+        "abuseConfidenceScore": 100,
+        "countryCode": "CA",
+        "usageType": "Data Center/Web Hosting/Transit",
+        "isp": "NL MODAT",
+        "domain": "modat.io",
+        "hostnames": [
+          "o040.scanner.modat.io"
+        ],
+        "isTor": false,
+        "totalReports": 5649,
+        "numDistinctUsers": 409,
+        "lastReportedAt": "2026-10-05T16:31:08+00:00"
+      }
+    }
+  },
+  {
+    "radar": {
+      "ip": "165.245.176.134",
+      "country": {
+        "value": "SG",
+        "confidence": 98,
+        "algorithm": "logodds",
+        "sources": [
+          {
+            "source": "dbip_city",
+            "value": "SG",
+            "reliability": 0.8,
+            "authoritative": false
+          },
+          {
+            "source": "geolite_city",
+            "value": "SG",
+            "reliability": 0.85,
+            "authoritative": false
+          },
+          {
+            "source": "ipinfo_lite",
+            "value": "SG",
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": "US",
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ],
+        "alternatives": [
+          {
+            "value": "SG",
+            "probability": 97.7
+          },
+          {
+            "value": "US",
+            "probability": 2.0
+          }
+        ]
+      },
+      "city": {
+        "value": "Singapore",
+        "confidence": 52,
+        "algorithm": "voting",
+        "sources": [
+          {
+            "source": "dbip_city",
+            "value": "Singapore (Pioneer)",
+            "reliability": 0.8,
+            "authoritative": false
+          },
+          {
+            "source": "geolite_city",
+            "value": "Singapore",
+            "reliability": 0.85,
+            "authoritative": false
+          }
+        ]
+      },
+      "city_zh": "新加坡",
+      "location": {
+        "lat": 1.314,
+        "lon": 103.6839,
+        "accuracy_radius": 20
+      },
+      "asn": {
+        "value": 14061,
+        "confidence": 99,
+        "algorithm": "logodds",
+        "sources": [
+          {
+            "source": "ipinfo_lite",
+            "value": 14061,
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": 14061,
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ],
+        "alternatives": [
+          {
+            "value": 14061,
+            "probability": 99.4
+          }
+        ]
+      },
+      "as_name": {
+        "value": "DigitalOcean, LLC",
+        "confidence": 95,
+        "algorithm": "authority",
+        "sources": [
+          {
+            "source": "ipinfo_lite",
+            "value": "DigitalOcean, LLC",
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": "DIGITALOCEAN-ASN",
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ]
+      },
+      "ip_range": {
+        "value": "165.245.176.0/20",
+        "confidence": 85,
+        "algorithm": "specificity",
+        "sources": [
+          {
+            "source": "ipinfo_lite",
+            "value": "165.245.176.0/20",
+            "reliability": 0.95,
+            "authoritative": false
+          },
+          {
+            "source": "iptoasn",
+            "value": "165.245.128.0/17",
+            "reliability": 0.9,
+            "authoritative": false
+          }
+        ]
+      },
+      "is_isp": false,
+      "threat": {
+        "verdict": "benign",
+        "confidence": 0,
+        "types": [],
+        "is_cdn": false
+      },
+      "classifications": {},
+      "attributes": {
+        "as_domain": [
+          {
+            "source": "ipinfo_lite",
+            "value": "digitalocean.com",
+            "native_type": null
+          }
+        ]
+      },
+      "is_reserved": false
+    },
+    "abuse": {
+      "data": {
+        "ipAddress": "165.245.176.134",
+        "isPublic": true,
+        "ipVersion": 4,
+        "isWhitelisted": false,
+        "abuseConfidenceScore": 0,
+        "countryCode": "SG",
+        "usageType": "Data Center/Web Hosting/Transit",
+        "isp": "DigitalOcean, LLC",
+        "domain": "digitalocean.com",
+        "hostnames": [],
+        "isTor": false,
+        "totalReports": 0,
+        "numDistinctUsers": 0,
+        "lastReportedAt": "2026-01-28T08:01:06+00:00"
+      }
+    }
+  }
+]

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IP Radar",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "批量 IP 情報查詢、AbuseIPDB 分數、查詢紀錄與 CSV 匯出。",
   "permissions": [
     "storage",
@@ -38,5 +38,6 @@
     "32": "icons/icon-32.png",
     "64": "icons/icon-64.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "version_name": "0.1.19-beta.1"
 }

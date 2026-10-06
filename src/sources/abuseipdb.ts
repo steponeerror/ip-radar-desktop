@@ -7,33 +7,17 @@ import type { QuerySource } from "./_types";
 // 程度由标签数值表达(徽章 value=max 原生刻度,不归一),不设可疑档——两档会把连续分数
 // 打包成不同选票,59/61 分界制造假分歧。依据:官方地板 25/行动建议 75-100,生态二元
 // 恶意 cutoff 集中在 50-80(GitHub 代码搜索 2026-09-28)。
-export const ABUSE_MALICIOUS_MIN = 50;
+export { ABUSE_MALICIOUS_MIN } from "../../shared/intelligence";
 
-export interface AbuseSection {
-  score: number;
-  totalReports: number;
-  numDistinctUsers: number;
-  isTor: boolean;
-  countryCode?: string;
-  isp?: string;
-  usageType?: string;
-  lastReportedAt?: string;
-  recentComments: string[];
-}
+export type { AbuseSection } from "../../shared/intelligence";
+import type { AbuseSection } from "../../shared/intelligence";
+import { abuseClaims } from "../../shared/intelligence";
 
 export const abuseipdbSource: QuerySource = {
   id: "abuseipdb",
   label: "AbuseIPDB",
   maxConcurrency: 5,
-  claimsOf(sec) {
-    if (sec.status !== "ok") return undefined;
-    const a = sec.data as AbuseSection;
-    return {
-      // ≥50 即恶意主张(二元,分数=程度由 value 表达),<50 = 弃权(官方无分带)
-      verdict: a.score >= ABUSE_MALICIOUS_MIN ? { code: "malicious", value: a.score } : undefined,
-      country: a.countryCode?.toUpperCase(),
-    };
-  },
+  claimsOf: abuseClaims,
   async query(ip, s) {
     if (!s.abuseipdbKey) return { sourceId: "abuseipdb", status: "needs-key" };
     const url = `https://api.abuseipdb.com/api/v2/check?ipAddress=${ip}&maxAgeInDays=90`;

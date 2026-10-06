@@ -1,6 +1,6 @@
 {
   "name": "ip-radar-extension",
-  "version": "0.1.18",
+  "version": "0.1.19-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
