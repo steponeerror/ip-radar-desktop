@@ -40,10 +40,7 @@ import {
   FieldDescription,
   FieldError,
 } from "@/components/ui/field";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { ChoiceSelect, ChoiceOption } from "@/components/ui/choice-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -55,7 +52,6 @@ import {
   parseIps,
   validateSettings,
   validQueryLimit,
-  MAX_QUERY_IPS,
   type Settings,
 } from "./model";
 import { send, subscribe, openTab, isExtension, beginLookup } from "./client";
@@ -110,29 +106,28 @@ function SettingsForm({
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="language">{t("語言")}</FieldLabel>
-            <NativeSelect
+            <ChoiceSelect
               id="language"
               value={draft.language}
-              onChange={(e) =>
-                update("language", e.target.value as Settings["language"])
+              onValueChange={(value) =>
+                update("language", value as Settings["language"])
               }
             >
-              <NativeSelectOption value="auto">
+              <ChoiceOption value="auto">
                 {t("Auto（跟隨瀏覽器）")}
-              </NativeSelectOption>
-              <NativeSelectOption value="zh-Hant">繁體中文</NativeSelectOption>
-              <NativeSelectOption value="zh-Hans">简体中文</NativeSelectOption>
-              <NativeSelectOption value="en">English</NativeSelectOption>
-            </NativeSelect>
+              </ChoiceOption>
+              <ChoiceOption value="zh-Hant">繁體中文</ChoiceOption>
+              <ChoiceOption value="zh-Hans">简体中文</ChoiceOption>
+              <ChoiceOption value="en">English</ChoiceOption>
+            </ChoiceSelect>
           </Field>
           <Field data-invalid={limitInvalid}>
             <FieldLabel htmlFor="query-limit">{t("單次最大查詢數")}</FieldLabel>
             <Input
+              type="text"
+              inputMode="numeric"
               id="query-limit"
-              type="number"
-              min={1}
-              max={MAX_QUERY_IPS}
-              step={1}
+
               value={limitInput}
               aria-invalid={limitInvalid}
               onChange={(e) => {

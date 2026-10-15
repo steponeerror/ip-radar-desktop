@@ -1,12 +1,15 @@
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { ChoiceSelect, ChoiceOption } from "@/components/ui/choice-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useI18n } from "./i18n";
@@ -138,36 +141,44 @@ export function HistoryView({
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="batch">{t("查詢批次")}</FieldLabel>
-              <NativeSelect
+              <ChoiceSelect
                 id="batch"
                 value={current?.id || ""}
-                onChange={(e) => {
-                  setBatchId(e.target.value);
+                onValueChange={(value) => {
+                  setBatchId(value);
                   setConfirm(null);
                 }}
               >
-                <NativeSelectOption value="" disabled>
+                <ChoiceOption value="" disabled>
                   {t("尚無紀錄")}
-                </NativeSelectOption>
+                </ChoiceOption>
                 {completed.map((batch) => (
-                  <NativeSelectOption key={batch.id} value={batch.id}>
+                  <ChoiceOption key={batch.id} value={batch.id}>
                     {label(batch)}
-                  </NativeSelectOption>
+                  </ChoiceOption>
                 ))}
-              </NativeSelect>
+              </ChoiceSelect>
             </Field>
           </FieldGroup>
-          <Button
-            className="self-end"
-            size="icon-sm"
-            variant="ghost"
-            aria-label={t("刪除此批次")}
-            title={t("刪除此批次")}
-            disabled={!current || busy}
-            onClick={() => setConfirm([current.id])}
-          >
-            <Trash2 />
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    className="self-end"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t("刪除此批次")}
+                    disabled={!current || busy}
+                    onClick={() => current && setConfirm([current.id])}
+                  />
+                }
+              >
+                <Trash2 />
+              </TooltipTrigger>
+              <TooltipContent>{t("刪除此批次")}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </>
       ) : null}
       {confirm && (

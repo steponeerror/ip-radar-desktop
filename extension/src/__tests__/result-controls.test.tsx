@@ -118,17 +118,19 @@ it("hides active batches and disables export even when some rows have finished",
     />,
   );
   expect(history).not.toContain('value="running"');
-  expect(history).toContain('value="finished"');
+  expect(history).toContain("查詢批次");
   running.rows[1].status = "done";
   expect(batchFinished(running)).toBe(true);
 });
-it("initially renders only ten IP cards and no row selection controls", () => {
+it("initially renders only five IP cards and no row selection controls", () => {
   const rows = Array.from({ length: 23 }, (_, i) => row(`10.0.0.${i + 1}`));
   const html = renderToStaticMarkup(
     <ResultPanel batch={batch("large", rows)} />,
   );
-  expect(html).toContain("10.0.0.10");
-  expect(html).not.toContain("10.0.0.11");
+  expect(html).toContain("10.0.0.5");
+  expect(html).not.toContain("10.0.0.6");
+  expect(html.match(/data-slot="pagination"/g)).toHaveLength(1);
+  expect(html.indexOf('data-slot="pagination"')).toBeGreaterThan(html.indexOf("10.0.0.5"));
   expect(html).not.toContain('role="checkbox"');
   expect(html).not.toContain("開始勾選");
 });

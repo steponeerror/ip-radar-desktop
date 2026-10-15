@@ -1,6 +1,6 @@
 import type { Batch, Row, State } from "./model";
 import { countryLabel, resultOf } from "./result-model";
-export const PAGE_SIZE = 10;
+export const PAGE_SIZE = 5;
 export const batchFinished = (batch?: Batch) =>
   !!batch?.rows.length && batch.rows.every((row) => row.status === "done");
 export type ScoreOperator =

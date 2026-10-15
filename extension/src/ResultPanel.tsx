@@ -1,3 +1,10 @@
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination";
 import { useId, useState } from "react";
 import { Download, SlidersHorizontal } from "lucide-react";
 import {
@@ -15,10 +22,7 @@ import {
   FieldError,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { ChoiceSelect, ChoiceOption } from "@/components/ui/choice-select";
 import { Results } from "./ResultView";
 import { useI18n } from "./i18n";
 import { downloadCsv } from "./csv";
@@ -64,30 +68,47 @@ export function PageControls({
   const { t } = useI18n();
   const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   return (
-    <nav
-      aria-label={t("結果分頁")}
-      className="flex items-center justify-between gap-2"
-    >
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={page === 0}
-        onClick={() => onChange(page - 1)}
-      >
-        {t("上一頁")}
-      </Button>
-      <span className="text-xs text-muted-foreground">
-        {page + 1} / {pages} · {count} {unit}
-      </span>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={page + 1 >= pages}
-        onClick={() => onChange(page + 1)}
-      >
-        {t("下一頁")}
-      </Button>
-    </nav>
+    <Pagination aria-label={t("結果分頁")}>
+      <PaginationContent className="w-full justify-between">
+        <PaginationItem>
+          <PaginationPrevious
+            href="#"
+            text={t("上一頁")}
+            aria-label={t("上一頁")}
+            aria-disabled={page === 0}
+            tabIndex={page === 0 ? -1 : 0}
+            className={
+              page === 0 ? "pointer-events-none opacity-50" : undefined
+            }
+            onClick={(e) => {
+              e.preventDefault();
+              if (page > 0) onChange(page - 1);
+            }}
+          />
+        </PaginationItem>
+        <PaginationItem>
+          <span className="text-xs text-muted-foreground">
+            {page + 1} / {pages} · {count} {unit}
+          </span>
+        </PaginationItem>
+        <PaginationItem>
+          <PaginationNext
+            href="#"
+            text={t("下一頁")}
+            aria-label={t("下一頁")}
+            aria-disabled={page + 1 >= pages}
+            tabIndex={page + 1 >= pages ? -1 : 0}
+            className={
+              page + 1 >= pages ? "pointer-events-none opacity-50" : undefined
+            }
+            onClick={(e) => {
+              e.preventDefault();
+              if (page + 1 < pages) onChange(page + 1);
+            }}
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
   );
 }
 export function ResultPanel({
@@ -174,39 +195,35 @@ export function ResultPanel({
                     <FieldLabel htmlFor={`${id}-country`}>
                       {t("地區")}
                     </FieldLabel>
-                    <NativeSelect
+                    <ChoiceSelect
                       id={`${id}-country`}
                       value={filters.country}
-                      onChange={(e) => update({ country: e.target.value })}
+                      onValueChange={(value) => update({ country: value })}
                     >
-                      <NativeSelectOption value="">
-                        {t("全部")}
-                      </NativeSelectOption>
+                      <ChoiceOption value="">{t("全部")}</ChoiceOption>
                       {countries.map((code) => (
-                        <NativeSelectOption key={code} value={code}>
+                        <ChoiceOption key={code} value={code}>
                           {countryLabel(code, locale)}
-                        </NativeSelectOption>
+                        </ChoiceOption>
                       ))}
-                    </NativeSelect>
+                    </ChoiceSelect>
                   </Field>
                   <Field>
                     <FieldLabel htmlFor={`${id}-verdict`}>
                       {t("總判定")}
                     </FieldLabel>
-                    <NativeSelect
+                    <ChoiceSelect
                       id={`${id}-verdict`}
                       value={filters.verdict}
-                      onChange={(e) => update({ verdict: e.target.value })}
+                      onValueChange={(value) => update({ verdict: value })}
                     >
-                      <NativeSelectOption value="">
-                        {t("全部")}
-                      </NativeSelectOption>
+                      <ChoiceOption value="">{t("全部")}</ChoiceOption>
                       {Object.entries(verdictLabels).map(([code, label]) => (
-                        <NativeSelectOption key={code} value={code}>
+                        <ChoiceOption key={code} value={code}>
                           {t(label)}
-                        </NativeSelectOption>
+                        </ChoiceOption>
                       ))}
-                    </NativeSelect>
+                    </ChoiceSelect>
                   </Field>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
@@ -214,11 +231,11 @@ export function ResultPanel({
                     <FieldLabel htmlFor={`${id}-operator`}>
                       {t("AbuseIPDB 分數")}
                     </FieldLabel>
-                    <NativeSelect
+                    <ChoiceSelect
                       id={`${id}-operator`}
                       value={filters.operator}
-                      onChange={(e) =>
-                        update({ operator: e.target.value as ScoreOperator })
+                      onValueChange={(value) =>
+                        update({ operator: value as ScoreOperator })
                       }
                     >
                       {(
@@ -233,22 +250,21 @@ export function ResultPanel({
                           ["missing", "沒有分數"],
                         ] as const
                       ).map(([value, label]) => (
-                        <NativeSelectOption key={value} value={value}>
+                        <ChoiceOption key={value} value={value}>
                           {t(label)}
-                        </NativeSelectOption>
+                        </ChoiceOption>
                       ))}
-                    </NativeSelect>
+                    </ChoiceSelect>
                   </Field>
                   {!["any", "missing"].includes(filters.operator) && (
-                    <Field className="w-24" data-invalid={!valid}>
+                    <Field className="w-40" data-invalid={!valid}>
                       <FieldLabel htmlFor={`${id}-score`}>
                         {t("分數")}
                       </FieldLabel>
                       <Input
+                        type="text"
+                        inputMode="numeric"
                         id={`${id}-score`}
-                        type="number"
-                        min={0}
-                        max={100}
                         value={filters.score}
                         aria-invalid={!valid}
                         onChange={(e) => update({ score: e.target.value })}
@@ -256,15 +272,14 @@ export function ResultPanel({
                     </Field>
                   )}
                   {filters.operator === "between" && (
-                    <Field className="w-24" data-invalid={!valid}>
+                    <Field className="w-40" data-invalid={!valid}>
                       <FieldLabel htmlFor={`${id}-upper`}>
                         {t("上限")}
                       </FieldLabel>
                       <Input
+                        type="text"
+                        inputMode="numeric"
                         id={`${id}-upper`}
-                        type="number"
-                        min={0}
-                        max={100}
                         value={filters.upper}
                         aria-invalid={!valid}
                         onChange={(e) => update({ upper: e.target.value })}
@@ -375,13 +390,6 @@ export function ResultPanel({
           {t("查詢完成後才能匯出 CSV。")}
         </p>
       )}
-      {filtered.length > 0 && (
-        <PageControls
-          page={safePage}
-          count={filtered.length}
-          onChange={setPage}
-        />
-      )}
       <Results
         rows={visible}
         selected={history && selecting ? selected : undefined}
@@ -389,7 +397,7 @@ export function ResultPanel({
           setSelected((previous) => toggleSelection(previous, ip, checked))
         }
       />
-      {filtered.length > PAGE_SIZE && (
+      {filtered.length > 0 && (
         <PageControls
           page={safePage}
           count={filtered.length}

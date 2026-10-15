@@ -1,7 +1,12 @@
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "./i18n";
 import { Button } from "@/components/ui/button";
-import { Fragment, useState, useId, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Radar, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -369,7 +374,7 @@ function ResultItem({
 }) {
   const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
-  const detailId = useId();
+
   const r = resultOf(row);
   const score = r.abuse?.score ?? row.score;
   const country =
@@ -455,26 +460,25 @@ function ResultItem({
         </div>
         {(row.errors.length > 0 || r.legacy) && <Messages row={row} />}
         {row.status === "done" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="self-end"
-            aria-expanded={expanded}
-            aria-controls={detailId}
-            onClick={() => setExpanded((v) => !v)}
+          <Collapsible
+            open={expanded}
+            onOpenChange={setExpanded}
+            className="flex flex-col gap-3"
           >
-            {expanded ? t("收起詳情") : t("查看詳情")}
-            {expanded ? (
-              <ChevronUp data-icon="inline-end" />
-            ) : (
-              <ChevronDown data-icon="inline-end" />
-            )}
-          </Button>
-        )}
-        {expanded && (
-          <div id={detailId}>
-            <FullResult row={row} />
-          </div>
+            <CollapsibleTrigger
+              render={<Button variant="ghost" size="sm" className="self-end" />}
+            >
+              {expanded ? t("收起詳情") : t("查看詳情")}
+              {expanded ? (
+                <ChevronUp data-icon="inline-end" />
+              ) : (
+                <ChevronDown data-icon="inline-end" />
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <FullResult row={row} />
+            </CollapsibleContent>
+          </Collapsible>
         )}
       </CardContent>
     </Card>
