@@ -138,6 +138,10 @@
   --primary: oklch(0.79 0.12 175);
   --primary-foreground: oklch(0.17 0.015 175);
 }
+html,
+body {
+  scrollbar-width: thin;
+}
 body {
   margin: 0;
 }
