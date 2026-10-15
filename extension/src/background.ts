@@ -1,3 +1,4 @@
+import { deleteBatches } from "./result-controls";
 import {
   activeBatch,
   normalizeState,
@@ -65,6 +66,7 @@ async function command(message: {
   settings?: Settings;
   patch?: Partial<Settings>;
   id?: string;
+  ids?: string[];
 }) {
   if (message.type === "get") return read();
   if (message.type === "settings") {
@@ -119,9 +121,7 @@ async function command(message: {
     controller?.abort();
   } else if (message.type === "delete") {
     await mutate((state) => {
-      if (activeBatch(state)?.id === message.id)
-        throw new Error("請先停止查詢再刪除。");
-      state.batches = state.batches.filter((b) => b.id !== message.id);
+      deleteBatches(state, message.ids ?? (message.id ? [message.id] : []));
     });
   } else throw new Error("未知操作");
   return read();

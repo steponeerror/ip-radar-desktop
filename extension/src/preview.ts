@@ -42,5 +42,29 @@ export function referencePreview() {
       })),
     },
   ];
+  // Synthetic, development-only pagination / selection fixtures.
+  const scenario = new URLSearchParams(location.search).get("scenario");
+  if (scenario === "controls" || scenario === "running") {
+    const rows = Array.from({ length: 23 }, (_, i) => {
+      const row = structuredClone(state.batches[0].rows[i % 2]);
+      row.ip = `192.0.2.${i + 1}`;
+      row.score = i * 4;
+      const abuse = row.sections?.find((s) => s.sourceId === "abuseipdb");
+      if (abuse) (abuse.data as { score: number }).score = row.score;
+      return row;
+    });
+    state.batches = [
+      { id: "preview-large", createdAt: "2026-10-14T00:00:00Z", rows },
+      ...state.batches,
+    ];
+    if (scenario === "running")
+      state.batches.unshift({
+        id: "preview-running",
+        createdAt: "2026-10-14T01:00:00Z",
+        rows: rows.map((row, i) =>
+          i < 3 ? row : { ...row, status: "pending" },
+        ),
+      });
+  }
   return state;
 }

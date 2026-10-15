@@ -17,6 +17,54 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+紀錄管理與更新|记录管理与更新|History management & updates
+目前版本|当前版本|Current version
+檢查更新|检查更新|Check for updates
+檢查更新中…|检查更新中…|Checking for updates…
+有新版本|有新版本|New version available
+目前已是最新版本。|当前已是最新版本。|You are up to date.
+前往 GitHub 發佈頁|前往 GitHub 发布页|View GitHub release
+新版本的擴充功能下載尚未就緒，請稍後再試。|新版本的扩展下载尚未就绪，请稍后再试。|The new extension download is not ready yet. Please try again later.
+無法檢查更新，請稍後重試或前往 GitHub 發佈頁。|无法检查更新，请稍后重试或前往 GitHub 发布页。|Could not check for updates. Try again later or visit GitHub releases.
+
+完成篩選|完成筛选|Done filtering
+結果分頁|结果分页|Result pages
+紀錄結果|记录结果|History results
+查詢結果|查询结果|Lookup results
+全部|全部|All
+不限分數|不限分数|Any score
+大於 >|大于 >|Greater than >
+大於或等於 ≥|大于或等于 ≥|At least ≥
+小於 <|小于 <|Less than <
+小於或等於 ≤|小于或等于 ≤|At most ≤
+等於 =|等于 =|Equal to =
+介於（含邊界）|介于（含边界）|Between (inclusive)
+沒有分數|没有分数|No score
+分數|分数|Score
+上限|上限|Upper bound
+重置篩選|重置筛选|Reset filters
+請輸入 0–100 的有效分數，上限不可低於下限。|请输入 0–100 的有效分数，上限不可低于下限。|Enter valid scores from 0 to 100; upper bound must not be below the lower bound.
+匯出篩選結果|导出筛选结果|Export filtered results
+匯出 CSV|导出 CSV|Export CSV
+開始勾選|开始勾选|Select results
+匯出已勾選|导出已勾选|Export selected
+勾選本頁|勾选本页|Select this page
+重置勾選|重置勾选|Reset selection
+取消勾選|取消勾选|Cancel selection
+已勾選|已勾选|Selected
+篩選外已勾選|筛选外已勾选|Selected outside filter
+勾選跨頁保留，匯出已勾選包含篩選外項目。|勾选跨页保留，导出已勾选包含筛选外项目。|Selection persists across pages. Export selected includes items outside the current filter.
+查詢完成後才能匯出 CSV。|查询完成后才能导出 CSV。|CSV export is available after the lookup finishes.
+管理批次|管理批次|Manage batches
+完成管理|完成管理|Done managing
+批次|批次|batches
+勾選全部批次|勾选全部批次|Select all batches
+刪除已勾選批次|删除已勾选批次|Delete selected batches
+確認刪除批次，刪除後無法復原。|确认删除批次，删除后无法恢复。|Confirm batch deletion. This cannot be undone.
+只顯示已完成或已停止的批次；查詢中進度請到查詢頁查看。|仅显示已完成或已停止的批次；查询中进度请到查询页查看。|Only finished or stopped batches appear here. See the Query tab for running lookups.
+勾選 IP|勾选 IP|Select IP
+背景查詢中，重新開啟查詢頁可查看進度。|后台查询中，重新打开查询页可查看进度。|Lookup runs in the background. Reopen the Query tab to check progress.
+
 單次最大查詢數|单次最大查询数|Maximum IPs per lookup
 單次最大查詢數必須是 1–1,000 的整數。|单次最大查询数必须是 1–1,000 的整数。|The lookup limit must be a whole number between 1 and 1,000.
 預設 100；可設定 1–1,000，以去重後的 IP 數量計算，不會增加 API 配額。|默认 100；可设置 1–1,000，按去重后的 IP 数量计算，不会增加 API 配额。|Default 100; range 1–1,000. Counts unique IPs and does not increase your API quota.

@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "./i18n";
 import { Button } from "@/components/ui/button";
 import { Fragment, useState, useId, type ReactNode } from "react";
@@ -357,7 +358,15 @@ export function FullResult({ row }: { row: Row }) {
     </Card>
   );
 }
-function ResultItem({ row }: { row: Row }) {
+function ResultItem({
+  row,
+  checked,
+  onSelect,
+}: {
+  row: Row;
+  checked?: boolean;
+  onSelect?: (checked: boolean) => void;
+}) {
   const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const detailId = useId();
@@ -371,11 +380,38 @@ function ResultItem({ row }: { row: Row }) {
       ? t("地區分歧")
       : t("地區未知"));
   return (
-    <Card size="sm">
+    <Card
+      size="sm"
+      className={checked !== undefined ? "cursor-pointer" : undefined}
+      data-selected={checked || undefined}
+      onClick={
+        checked === undefined
+          ? undefined
+          : (event) => {
+              if (
+                (event.target as HTMLElement).closest(
+                  'button, input, a, [role="checkbox"]',
+                )
+              )
+                return;
+              if (window.getSelection()?.toString()) return;
+              onSelect?.(!checked);
+            }
+      }
+    >
       <CardHeader>
         <CardTitle>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-mono">{row.ip}</span>
+            <span className="flex items-center gap-2 font-mono">
+              {checked !== undefined && (
+                <Checkbox
+                  aria-label={`${t("勾選 IP")} ${row.ip}`}
+                  checked={checked}
+                  onCheckedChange={onSelect}
+                />
+              )}
+              {row.ip}
+            </span>
             {row.status === "done" && (
               <Badge
                 variant="outline"
@@ -444,7 +480,15 @@ function ResultItem({ row }: { row: Row }) {
     </Card>
   );
 }
-export function Results({ rows }: { rows: Row[] }) {
+export function Results({
+  rows,
+  selected,
+  onSelect,
+}: {
+  rows: Row[];
+  selected?: ReadonlySet<string>;
+  onSelect?: (ip: string, checked: boolean) => void;
+}) {
   const { t } = useI18n();
   if (!rows.length)
     return (
@@ -463,7 +507,12 @@ export function Results({ rows }: { rows: Row[] }) {
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row, i) => (
-        <ResultItem key={`${row.ip}-${row.queriedAt}-${i}`} row={row} />
+        <ResultItem
+          key={`${row.ip}-${i}`}
+          row={row}
+          checked={selected ? selected.has(row.ip) : undefined}
+          onSelect={(checked) => onSelect?.(row.ip, checked)}
+        />
       ))}
     </div>
   );

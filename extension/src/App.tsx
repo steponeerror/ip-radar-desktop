@@ -5,7 +5,12 @@ import {
   translateError,
   useI18n,
 } from "./i18n";
-import { Results } from "./ResultView";
+import { ResultPanel, QueryExport } from "./ResultPanel";
+import { downloadCsv } from "./csv";
+import { Download } from "lucide-react";
+import { UpdateCheck } from "./UpdateCheck";
+import { HistoryView } from "./HistoryView";
+import { batchFinished } from "./result-controls";
 import { useEffect, useState, useRef } from "react";
 import {
   Radar,
@@ -15,9 +20,7 @@ import {
   Sun,
   Moon,
   ExternalLink,
-  Download,
   Square,
-  Trash2,
   ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,7 +59,6 @@ import {
   type Settings,
 } from "./model";
 import { send, subscribe, openTab, isExtension, beginLookup } from "./client";
-import { downloadCsv } from "./csv";
 
 function SettingsForm({
   settings,
@@ -151,9 +153,15 @@ function SettingsForm({
             )}
           </Field>
           <Field orientation="horizontal">
-            <FieldLabel htmlFor="radar-enabled">IP Radar Server</FieldLabel>
+            <span
+              id="radar-enabled-label"
+              className="flex-1 text-sm font-medium"
+            >
+              IP Radar Server
+            </span>
             <Switch
               id="radar-enabled"
+              aria-labelledby="radar-enabled-label"
               checked={draft.radarEnabled}
               onCheckedChange={(v) => update("radarEnabled", v)}
             />
@@ -181,9 +189,15 @@ function SettingsForm({
             </FieldDescription>
           </Field>
           <Field orientation="horizontal">
-            <FieldLabel htmlFor="abuse-enabled">AbuseIPDB</FieldLabel>
+            <span
+              id="abuse-enabled-label"
+              className="flex-1 text-sm font-medium"
+            >
+              AbuseIPDB
+            </span>
             <Switch
               id="abuse-enabled"
+              aria-labelledby="abuse-enabled-label"
               checked={draft.abuseEnabled}
               onCheckedChange={(v) => update("abuseEnabled", v)}
             />
@@ -202,19 +216,23 @@ function SettingsForm({
             </FieldDescription>
           </Field>
           <Field orientation="horizontal">
-            <FieldLabel htmlFor="open-tab">
+            <span id="open-tab-label" className="flex-1 text-sm font-medium">
               {t("預設以瀏覽器分頁開啟")}
-            </FieldLabel>
+            </span>
             <Switch
               id="open-tab"
+              aria-labelledby="open-tab-label"
               checked={draft.openInTab}
               onCheckedChange={(v) => update("openInTab", v)}
             />
           </Field>
           <Field orientation="horizontal">
-            <FieldLabel htmlFor="dark">{t("深色模式")}</FieldLabel>
+            <span id="dark-label" className="flex-1 text-sm font-medium">
+              {t("深色模式")}
+            </span>
             <Switch
               id="dark"
+              aria-labelledby="dark-label"
               checked={draft.theme === "dark"}
               onCheckedChange={(v) => update("theme", v ? "dark" : "light")}
             />
@@ -254,13 +272,9 @@ export default function App() {
   const [view, setView] = useState(
     new URLSearchParams(location.search).get("view") || "query",
   );
+  const [managingBatches, setManagingBatches] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState("");
-  const [paginate, setPaginate] = useState(true);
-  const [page, setPage] = useState(0);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   useEffect(() => {
     const unsubscribe = subscribe(setState);
     send("get")
@@ -280,14 +294,7 @@ export default function App() {
   const parsed = parseIps(text);
   const active = activeBatch(state);
   const current = state.batches[0];
-  const historyBatch = state.batches.find((b) => b.id === selected) || current;
-  const filtered = (historyBatch?.rows || []).filter((r) =>
-    `${r.ip} ${r.country || ""} ${r.city || ""} ${r.isp || ""}`
-      .toLowerCase()
-      .includes(filter.toLowerCase()),
-  );
-  const pages = Math.max(1, Math.ceil(filtered.length / 10));
-  const safePage = Math.min(page, pages - 1);
+  const completed = state.batches.filter(batchFinished);
   async function action(type: string, data = {}) {
     setBusy(true);
     setNotice("");
@@ -371,280 +378,172 @@ export default function App() {
             <AlertDescription>{errorText(notice)}</AlertDescription>
           </Alert>
         )}
-        <Tabs value={view} onValueChange={(v) => setView(String(v))}>
-          <TabsList className="w-full">
-            <TabsTrigger value="query">
-              <Search />
-              {t("查詢")}
-            </TabsTrigger>
-            <TabsTrigger value="history">
-              <History />
-              {t("紀錄")} {state.batches.length || ""}
-            </TabsTrigger>
-            <TabsTrigger value="settings">
-              <Settings2 />
-              {t("設定")}
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="query" className="flex flex-col gap-4 pt-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("批量查詢 IP")}</CardTitle>
-                <CardDescription>
-                  {t("IPv4 / IPv6 · 換行、逗號或空格分隔")} ·{" "}
-                  {t("單次最大查詢數")}：{state.settings.maxQueryIps}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FieldGroup>
-                  <Field data-invalid={parsed.invalid.length > 0}>
-                    <FieldLabel htmlFor="ips" className="sr-only">
-                      {t("IP 清單")}
-                    </FieldLabel>
-                    <Textarea
-                      id="ips"
-                      aria-invalid={parsed.invalid.length > 0}
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      placeholder={"1.1.1.1\n8.8.8.8\n2606:4700:4700::1111"}
-                      className="min-h-28 max-h-48"
-                    />
-                    {parsed.invalid.length > 0 && (
-                      <FieldError>
-                        {t("無效項目：")}
-                        {parsed.invalid.slice(0, 3).join("、")}
-                      </FieldError>
+        {managingBatches ? (
+          <HistoryView
+            management
+            batches={state.batches}
+            onDone={() => setManagingBatches(false)}
+            onDelete={async (ids) => setState(await send("delete", { ids }))}
+          />
+        ) : (
+          <Tabs value={view} onValueChange={(v) => setView(String(v))}>
+            <TabsList className="w-full">
+              <TabsTrigger value="query">
+                <Search />
+                {t("查詢")}
+              </TabsTrigger>
+              <TabsTrigger value="history">
+                <History />
+                {t("紀錄")} {completed.length || ""}
+              </TabsTrigger>
+              <TabsTrigger value="settings">
+                <Settings2 />
+                {t("設定")}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="query" className="flex flex-col gap-4 pt-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("批量查詢 IP")}</CardTitle>
+                  <CardDescription>
+                    {t("IPv4 / IPv6 · 換行、逗號或空格分隔")} ·{" "}
+                    {t("單次最大查詢數")}：{state.settings.maxQueryIps}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FieldGroup>
+                    <Field data-invalid={parsed.invalid.length > 0}>
+                      <FieldLabel htmlFor="ips" className="sr-only">
+                        {t("IP 清單")}
+                      </FieldLabel>
+                      <Textarea
+                        id="ips"
+                        aria-invalid={parsed.invalid.length > 0}
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder={"1.1.1.1\n8.8.8.8\n2606:4700:4700::1111"}
+                        className="min-h-28 max-h-48"
+                      />
+                      {parsed.invalid.length > 0 && (
+                        <FieldError>
+                          {t("無效項目：")}
+                          {parsed.invalid.slice(0, 3).join("、")}
+                        </FieldError>
+                      )}
+                      {parsed.ips.length > state.settings.maxQueryIps && (
+                        <FieldError>
+                          {t("超過單次查詢上限，請分批查詢。")}
+                        </FieldError>
+                      )}
+                    </Field>
+                  </FieldGroup>
+                </CardContent>
+                <CardFooter>
+                  <div className="flex w-full items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {parsed.ips.length} {t("個不重複 IP")}
+                    </span>
+                    {active ? (
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void action("cancel")}
+                      >
+                        <Square data-icon="inline-start" />
+                        {t("停止查詢")}
+                      </Button>
+                    ) : (
+                      <Button
+                        disabled={
+                          !ready ||
+                          busy ||
+                          !parsed.ips.length ||
+                          !!parsed.invalid.length ||
+                          parsed.ips.length > state.settings.maxQueryIps
+                        }
+                        onClick={() => void start()}
+                      >
+                        {t("開始查詢")}
+                        <ArrowRight data-icon="inline-end" />
+                      </Button>
                     )}
-                    {parsed.ips.length > state.settings.maxQueryIps && (
-                      <FieldError>
-                        {t("超過單次查詢上限，請分批查詢。")}
-                      </FieldError>
-                    )}
-                  </Field>
-                </FieldGroup>
-              </CardContent>
-              <CardFooter>
-                <div className="flex w-full items-center justify-between gap-3">
-                  <span className="text-xs text-muted-foreground">
-                    {parsed.ips.length} {t("個不重複 IP")}
-                  </span>
-                  {active ? (
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void action("cancel")}
-                    >
-                      <Square data-icon="inline-start" />
-                      {t("停止查詢")}
-                    </Button>
-                  ) : (
-                    <Button
-                      disabled={
-                        !ready ||
-                        busy ||
-                        !parsed.ips.length ||
-                        !!parsed.invalid.length ||
-                        parsed.ips.length > state.settings.maxQueryIps
-                      }
-                      onClick={() => void start()}
-                    >
-                      {t("開始查詢")}
-                      <ArrowRight data-icon="inline-end" />
-                    </Button>
-                  )}
+                  </div>
+                </CardFooter>
+              </Card>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-medium">{t("最新結果")}</h2>
+                  <Badge variant="outline">
+                    {current?.rows.filter((r) => r.status === "done").length ||
+                      0}{" "}
+                    / {current?.rows.length || 0}
+                  </Badge>
                 </div>
-              </CardFooter>
-            </Card>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-medium">{t("最新結果")}</h2>
-                <Badge variant="outline">
-                  {current?.rows.filter((r) => r.status === "done").length || 0}{" "}
-                  / {current?.rows.length || 0}
-                </Badge>
+                <QueryExport batch={current} />
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={!current?.rows.length}
-                onClick={() => downloadCsv(current.rows, locale)}
-              >
-                <Download data-icon="inline-start" />
-                CSV
-              </Button>
-            </div>
-            {active && (
-              <p role="status" className="text-xs text-muted-foreground">
-                {t("背景查詢中，關閉視窗後可從紀錄查看進度。")}
-              </p>
-            )}
-            <Results rows={current?.rows || []} />
-          </TabsContent>
-          <TabsContent value="history" className="flex flex-col gap-4 pt-3">
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="batch">{t("查詢批次")}</FieldLabel>
-                <NativeSelect
-                  id="batch"
-                  value={historyBatch?.id || ""}
-                  onChange={(e) => {
-                    setSelected(e.target.value);
-                    setPage(0);
-                    setConfirmDelete(false);
-                  }}
-                >
-                  <NativeSelectOption value="" disabled>
-                    {t("尚無紀錄")}
-                  </NativeSelectOption>
-                  {state.batches.map((b) => (
-                    <NativeSelectOption key={b.id} value={b.id}>
-                      {new Date(b.createdAt).toLocaleString(locale)} ·{" "}
-                      {b.rows.length} IP{b.cancelled ? t(" · 已停止") : ""}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="filter" className="sr-only">
-                  {t("篩選紀錄")}
-                </FieldLabel>
-                <Input
-                  id="filter"
-                  placeholder={t("搜尋 IP、地區或 ISP…")}
-                  value={filter}
-                  onChange={(e) => {
-                    setFilter(e.target.value);
-                    setPage(0);
+              {active && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  {t("背景查詢中，重新開啟查詢頁可查看進度。")}
+                </p>
+              )}
+              <ResultPanel key={current?.id || "empty"} batch={current} />
+            </TabsContent>
+            <TabsContent value="history" className="flex flex-col gap-4 pt-3">
+              <HistoryView
+                batches={state.batches}
+                onDelete={async (ids) =>
+                  setState(await send("delete", { ids }))
+                }
+              />
+            </TabsContent>
+            <TabsContent value="settings" className="flex flex-col gap-4 pt-3">
+              {ready && (
+                <SettingsForm
+                  settings={state.settings}
+                  onSave={async (settings) => {
+                    if (!isExtension)
+                      setState((s) => ({
+                        ...s,
+                        settings: { ...s.settings, ...settings },
+                      }));
+                    else setState(await send("settings", { patch: settings }));
                   }}
                 />
-              </Field>
-              <Field orientation="horizontal">
-                <FieldLabel htmlFor="pagination">
-                  {t("分頁顯示（每頁 10 筆）")}
-                </FieldLabel>
-                <Switch
-                  id="pagination"
-                  checked={paginate}
-                  onCheckedChange={setPaginate}
-                />
-              </Field>
-            </FieldGroup>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!filtered.length}
-                onClick={() => downloadCsv(filtered, locale)}
-              >
-                <Download data-icon="inline-start" />
-                {t("匯出篩選結果 (")}
-                {filtered.length})
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={!state.batches.length}
-                onClick={() =>
-                  downloadCsv(
-                    state.batches.flatMap((b) => b.rows),
-                    locale,
-                  )
-                }
-              >
-                {t("匯出全部紀錄")}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={t("刪除此批次")}
-                disabled={
-                  !historyBatch || busy || active?.id === historyBatch?.id
-                }
-                onClick={() => setConfirmDelete(true)}
-              >
-                <Trash2 />
-              </Button>
-            </div>
-            {confirmDelete && (
-              <Alert>
-                <AlertDescription>
-                  <div className="flex items-center justify-between gap-2">
-                    {t("刪除此批次紀錄？")}
+              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("紀錄管理與更新")}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <Button
                       size="sm"
-                      variant="destructive"
-                      onClick={() => {
-                        void action("delete", { id: historyBatch?.id });
-                        setConfirmDelete(false);
-                      }}
+                      disabled={!completed.length}
+                      onClick={() => setManagingBatches(true)}
                     >
-                      {t("刪除")}
+                      {t("管理批次")}
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      onClick={() => setConfirmDelete(false)}
+                      variant="outline"
+                      disabled={!completed.length}
+                      onClick={() =>
+                        downloadCsv(
+                          completed.flatMap((batch) => batch.rows),
+                          locale,
+                        )
+                      }
                     >
-                      {t("取消")}
+                      <Download data-icon="inline-start" />
+                      {t("匯出全部紀錄")}
                     </Button>
                   </div>
-                </AlertDescription>
-              </Alert>
-            )}
-            <Results
-              rows={
-                paginate
-                  ? filtered.slice(safePage * 10, safePage * 10 + 10)
-                  : filtered
-              }
-            />
-            {paginate && filtered.length > 0 && (
-              <div className="flex items-center justify-between">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage === 0}
-                  onClick={() => setPage(safePage - 1)}
-                >
-                  {t("上一頁")}
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {safePage + 1} / {pages}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage + 1 >= pages}
-                  onClick={() => setPage(safePage + 1)}
-                >
-                  {t("下一頁")}
-                </Button>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {t("保留最近 50 個批次。CSV 包含篩選後所有頁面，缺失資料留空。")}
-            </p>
-          </TabsContent>
-          <TabsContent value="settings" className="pt-3">
-            {ready && (
-              <SettingsForm
-                settings={state.settings}
-                onSave={async (settings) => {
-                  if (!isExtension)
-                    setState((s) => ({
-                      ...s,
-                      settings: { ...s.settings, ...settings },
-                    }));
-                  else setState(await send("settings", { patch: settings }));
-                }}
-              />
-            )}
-          </TabsContent>
-        </Tabs>
-        <footer className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>IP Radar + AbuseIPDB</span>
-          <span>LOCAL HISTORY · CSV EXPORT</span>
-        </footer>
+                  <UpdateCheck />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </main>
     </I18nContext.Provider>
   );
