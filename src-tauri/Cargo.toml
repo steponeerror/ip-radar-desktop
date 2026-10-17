@@ -30,7 +30,7 @@ tauri-plugin-window-state = "2"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "charset", "stream"] }
 futures-util = { version = "0.3", default-features = false }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
-# CSV 另存为的原生对话框(linux 走 GTK3 / windows 走 IFileSaveDialog),仅此一处用途
+# CSV 另存为的原生对话框(linux 走 xdg-desktop-portal,门户失败退 zenity / windows 走 IFileSaveDialog),仅此一处用途
 rfd = "0.15"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
