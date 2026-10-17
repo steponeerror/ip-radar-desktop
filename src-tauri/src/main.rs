@@ -405,6 +405,19 @@ fn open_url(url: &str) -> Result<(), String> {
     cmd.status().map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// CSV 另存为(rfd 原生对话框):取消返回 None;写入失败返回 Err。
+#[tauri::command]
+async fn save_csv(file_name: String, content: String) -> Result<Option<String>, String> {
+    match rfd::AsyncFileDialog::new().set_file_name(&file_name).save_file().await {
+        Some(handle) => {
+            let path = handle.path().to_path_buf();
+            std::fs::write(&path, content).map_err(|e| e.to_string())?;
+            Ok(Some(path.display().to_string()))
+        }
+        None => Ok(None),
+    }
+}
+
 /// Startup hotkey comes from the persisted store (frontend key "settings.hotkey");
 /// empty/missing/invalid falls back to the default.
 fn stored_hotkey(app: &tauri::AppHandle) -> String {
@@ -529,7 +542,9 @@ fn main() {
             set_autostart,
             http_get,
             http_stream,
-            open_url
+            open_url,
+            // save_csv:前端两处 WYSIWYG 导出入口
+            save_csv
         ])
         .setup(|app| {
             // ── Win11 原生圆角(DWM):不用透明窗,保系统 resize 框架+阴影;
