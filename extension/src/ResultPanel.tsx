@@ -5,7 +5,7 @@ import {
   PaginationPrevious,
   PaginationNext,
 } from "@/components/ui/pagination";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Download, SlidersHorizontal } from "lucide-react";
 import {
   Popover,
@@ -114,14 +114,26 @@ export function PageControls({
 export function ResultPanel({
   batch,
   history = false,
+  scrollTargetId,
 }: {
   batch?: Batch;
   history?: boolean;
+  scrollTargetId?: string;
 }) {
   const { t, locale } = useI18n();
   const id = useId();
+  const resultsRef = useRef<HTMLElement>(null);
+  const scrollAfterPageChange = useRef(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
+  useEffect(() => {
+    if (!scrollAfterPageChange.current) return;
+    scrollAfterPageChange.current = false;
+    const target =
+      (scrollTargetId && document.getElementById(scrollTargetId)) ||
+      resultsRef.current;
+    target?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [page, scrollTargetId]);
   const [filters, setFilters] = useState<ResultFilters>({ ...emptyFilters });
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -160,7 +172,8 @@ export function ResultPanel({
   }
   return (
     <section
-      className="flex flex-col gap-3"
+      ref={resultsRef}
+      className="flex scroll-mt-3 flex-col gap-3"
       aria-label={t(history ? "紀錄結果" : "查詢結果")}
     >
       {history && (
@@ -401,7 +414,10 @@ export function ResultPanel({
         <PageControls
           page={safePage}
           count={filtered.length}
-          onChange={setPage}
+          onChange={(nextPage) => {
+            scrollAfterPageChange.current = true;
+            setPage(nextPage);
+          }}
         />
       )}
     </section>

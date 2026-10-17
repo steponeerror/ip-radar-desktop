@@ -467,7 +467,12 @@ export default function App() {
               </Card>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-medium">{t("最新結果")}</h2>
+                  <h2
+                    id="latest-results"
+                    className="scroll-mt-3 text-sm font-medium"
+                  >
+                    {t("最新結果")}
+                  </h2>
                   <Badge variant="outline">
                     {current?.rows.filter((r) => r.status === "done").length ||
                       0}{" "}
@@ -481,7 +486,11 @@ export default function App() {
                   {t("背景查詢中，重新開啟查詢頁可查看進度。")}
                 </p>
               )}
-              <ResultPanel key={current?.id || "empty"} batch={current} />
+              <ResultPanel
+                key={current?.id || "empty"}
+                batch={current}
+                scrollTargetId="latest-results"
+              />
             </TabsContent>
             <TabsContent value="history" className="flex flex-col gap-4 pt-3">
               <HistoryView
