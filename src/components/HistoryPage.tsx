@@ -3,7 +3,6 @@
 // 回看子视图:与主视图同构(FilterBar + ResultList + ResultDetail 整套复用),只读不发起查询。
 // 徽章由 App 在查询完成时回填共识;verdicts 键缺失 = 灰(源全挂无共识,或重查同集合回填前——设计内)。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import type { HistoryEntry } from "../history";
 import type { Settings } from "../sources/_types";
 import { useI18n } from "../i18n";
@@ -17,7 +16,7 @@ import {
   type ResultFilters,
   type ResultRow,
 } from "../result-model";
-import { toCsv, defaultCsvName } from "../csv";
+import { useCsvExport } from "./useCsvExport";
 import {
   ArrowLeft,
   ArrowClockwise,
@@ -65,9 +64,11 @@ function HistoryViewing({
   const [filters, setFilters] = useState<ResultFilters>({ ...emptyFilters });
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedIp, setSelectedIp] = useState<string | null>(rows[0]?.[0] ?? null);
-  const [exportNote, setExportNote] = useState("");
+  const { note: exportNote, exportCsv, clearNote } = useCsvExport();
   const filteredRows = useMemo(() => filterResults(rows, filters, lang), [rows, filters, lang]);
   const filteredMap = useMemo(() => new Map(filteredRows), [filteredRows]);
+  // 提示过期:切换条目时清旧「已保存」;返回路径由卸载重置覆盖(T5)
+  useEffect(() => { clearNote(); }, [entry, clearNote]);
   const filterCount = [
     filters.text.trim(),
     filters.country,
@@ -81,21 +82,7 @@ function HistoryViewing({
     setSelectedIp(filteredRows.length ? filteredRows[0][0] : null);
   }, [filteredRows, selectedIp]);
 
-  const exportView = async () => {
-    if (filteredRows.length === 0) return;
-    try {
-      const saved = await invoke<string | null>("save_csv", {
-        fileName: defaultCsvName(),
-        content: toCsv(
-          filteredRows.map(([ip, sections]) => ({ ip, sections, at: entry.at })),
-          t,
-        ),
-      });
-      setExportNote(saved ? t("export.saved", { path: saved }) : "");
-    } catch {
-      setExportNote(t("export.failed"));
-    }
-  };
+  const exportView = () => exportCsv(filteredRows, entry.at);
 
   return (
     <div className="flex h-full flex-col">
@@ -117,7 +104,7 @@ function HistoryViewing({
             aria-label={t("export.button")}
             title={t("export.button")}
             disabled={filteredRows.length === 0}
-            onClick={() => void exportView()}
+            onClick={exportView}
             className={ICON_BTN}
           >
             <Download size={13} />
@@ -264,7 +251,7 @@ export function HistoryPage({ entries, settings, onGoSettings, onRequery, onDele
                   className="flex w-full flex-col gap-1 px-4 py-2.5 text-left transition-colors focus-visible:bg-zinc-900 focus-visible:outline-none active:bg-zinc-800/70"
                 >
                   <span className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500">
-                    {fmtTime(e.at)} · {e.ips.length} IP
+                    {fmtTime(e.at)} · {t("history.ipCount", { n: e.ips.length })}
                     {e.sections && (
                       <Archive size={10} className="text-emerald-500/70" aria-label={t("history.archive")} />
                     )}

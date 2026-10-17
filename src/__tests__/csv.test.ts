@@ -32,6 +32,12 @@ describe("csvCell", () => {
     expect(csvCell(" =cmd")).toBe('"\' =cmd"');
     expect(csvCell("safe=1")).toBe('"safe=1"'); // 仅前缀触发
   });
+
+  test("公式注入防护:tab/CR/LF 开头补单引号(空白前缀防护路径)", () => {
+    expect(csvCell("\tfoo")).toBe('"\'\tfoo"');
+    expect(csvCell("\rfoo")).toBe('"\'\rfoo"');
+    expect(csvCell("\nfoo")).toBe('"\'\nfoo"');
+  });
 });
 
 describe("toCsv", () => {

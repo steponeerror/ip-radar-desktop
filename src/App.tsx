@@ -17,7 +17,7 @@ import type { Settings, SourceSection } from "./sources/_types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
 import { I18nProvider, useI18n, type Pref } from "./i18n";
 import { isNewerVersion, stripTag } from "./version";
-import { recordQuery, stampVerdicts, loadHistory, saveHistory, HISTORY_CAP, type HistoryEntry } from "./history";
+import { recordQuery, stampVerdicts, loadHistory, saveHistory, enforceArchiveCap, HISTORY_CAP, type HistoryEntry } from "./history";
 import { nextPollDelay } from "./warming";
 import { consensusOf } from "./components/consensus";
 import { ResultList } from "./components/ResultList";
@@ -26,7 +26,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { HistoryPage, entryKey } from "./components/HistoryPage";
 import { FilterBar, Toolbar } from "./components/FilterBar";
 import { emptyFilters, filterResults, type ResultFilters, type ResultRow } from "./result-model";
-import { defaultCsvName, toCsv } from "./csv";
+import { useCsvExport } from "./components/useCsvExport";
 import { CircleNotch, Gear, Minus, X, Moon, Sun, ClockCounterClockwise } from "@phosphor-icons/react";
 
 type View = "main" | "settings" | "history";
@@ -141,8 +141,8 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   // 左栏筛选(主视图当前结果):组件态不持久化;无效分数条件 → filterResults 出空
   const [filters, setFilters] = useState<ResultFilters>({ ...emptyFilters });
   const [filterOpen, setFilterOpen] = useState(false);
-  // 导出结果提示:成功路径 / 失败提示;空串 = 无提示(取消静默)
-  const [exportNote, setExportNote] = useState("");
+  // 导出结果提示(T4/T5):三态 note 与保存逻辑收敛在 useCsvExport,新查询发起即清旧提示
+  const { note: exportNote, exportCsv, clearNote } = useCsvExport();
   // 导出的 at 用查询发起时刻:查询完成才 stamp,但条目语义是发起时间
   const queryStartedAtRef = useRef(Date.now());
 
@@ -182,6 +182,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     async (ips: string[], trunc?: { total: number; max: number }) => {
       const epoch = ++queryEpochRef.current;
       queryStartedAtRef.current = Date.now(); // 导出 at 的基准
+      clearNote(); // 新查询发起:旧「已保存」提示指向旧数据,过期
       stopWarmingPoll();
       lastIpsRef.current = ips;
       lastTruncRef.current = trunc;
@@ -227,7 +228,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
       setQuerying(false);
       if (anyWarming(map)) startWarmingRef.current();
     },
-    [stopWarmingPoll],
+    [stopWarmingPoll, clearNote],
   );
   runQueryRef.current = runQuery;
 
@@ -380,8 +381,11 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         const merged = historyRef.current.length
           ? [...historyRef.current, ...entries.filter(e => !memKeys.has([...e.ips].sort().join(",")))].slice(0, HISTORY_CAP)
           : entries; // ref 空(无竞态)= 原始加载行为
-        historyRef.current = merged;
-        setHistory(merged);
+        // 竞态合并可瞬时超出存档配额(内存新条目 + 磁盘近满)→ 收口回不变式再入 ref,
+        // 防后续单删/清空把超配内存态整批写盘
+        const capped = enforceArchiveCap(merged);
+        historyRef.current = capped;
+        setHistory(capped);
       })
       .catch(() => {});
   }, []);
@@ -439,22 +443,8 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     setSelectedIp(filteredRows.length ? filteredRows[0][0] : null);
   }, [filteredRows, selectedIp, querying]);
 
-  /** 导出筛选后所见(WYSIWYG):save_csv 取消返回 null 静默;at 用查询发起时刻。 */
-  const exportResults = async () => {
-    if (filteredRows.length === 0) return;
-    try {
-      const saved = await invoke<string | null>("save_csv", {
-        fileName: defaultCsvName(),
-        content: toCsv(
-          filteredRows.map(([ip, sections]) => ({ ip, sections, at: queryStartedAtRef.current })),
-          t,
-        ),
-      });
-      setExportNote(saved ? t("export.saved", { path: saved }) : "");
-    } catch {
-      setExportNote(t("export.failed"));
-    }
-  };
+  /** 导出筛选后所见(WYSIWYG);at 用查询发起时刻。实现收敛于 useCsvExport(T4/T5)。 */
+  const exportResults = () => exportCsv(filteredRows, queryStartedAtRef.current);
 
   return (
     <div className="dot-grid flex h-screen w-full flex-col overflow-hidden rounded-xl bg-zinc-950 text-zinc-100">
@@ -617,7 +607,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                   onToggle={() => setFilterOpen(o => !o)}
                   filterCount={filterCount}
                   onClearFilters={() => setFilters({ ...emptyFilters })}
-                  onExport={() => void exportResults()}
+                  onExport={exportResults}
                   exportDisabled={filteredRows.length === 0}
                   exportTitle={t("export.button")}
                 />
