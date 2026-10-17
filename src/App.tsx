@@ -1,7 +1,7 @@
 // 主 UI(双栏):常驻查询栏 → banners → 左列表(w-72)/右详情;settings/history 整窗覆盖态。
 // 唤起链路:Rust 快捷键 → emit("hotkey-triggered") 携带 {selected, reason} → routeHotkey 路由:captured→分发选中(无 IP 走 noIpHint)/clipboard-fallback→读剪贴板/其余→captureFailed 提示条 → extractIps → 分发查询。
 // warming(503 code):轮询 /api/db-status(5s 起 ×2 至 30s 封顶),就绪后重发原查询。
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
@@ -23,7 +23,10 @@ import { consensusOf } from "./components/consensus";
 import { ResultList } from "./components/ResultList";
 import { ResultDetail } from "./components/ResultDetail";
 import { SettingsPage } from "./components/SettingsPage";
-import { HistoryPage } from "./components/HistoryPage";
+import { HistoryPage, entryKey } from "./components/HistoryPage";
+import { FilterBar, Toolbar } from "./components/FilterBar";
+import { emptyFilters, filterResults, type ResultFilters, type ResultRow } from "./result-model";
+import { defaultCsvName, toCsv } from "./csv";
 import { CircleNotch, Gear, Minus, X, Moon, Sun, ClockCounterClockwise } from "@phosphor-icons/react";
 
 type View = "main" | "settings" | "history";
@@ -116,7 +119,7 @@ export default function App() {
 }
 
 function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSettingsSaved: (s: Settings) => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [view, setView] = useState<View>("main");
   const [results, setResults] = useState<Map<string, SourceSection[]>>(new Map());
   const [selectedIp, setSelectedIp] = useState<string | null>(null);
@@ -135,6 +138,13 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const seenUpdateRef = useRef<string | null>(null); // 已弹过的 tag:同 tag 关过后不再弹
   const [querying, setQuerying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // 左栏筛选(主视图当前结果):组件态不持久化;无效分数条件 → filterResults 出空
+  const [filters, setFilters] = useState<ResultFilters>({ ...emptyFilters });
+  const [filterOpen, setFilterOpen] = useState(false);
+  // 导出结果提示:成功路径 / 失败提示;空串 = 无提示(取消静默)
+  const [exportNote, setExportNote] = useState("");
+  // 导出的 at 用查询发起时刻:查询完成才 stamp,但条目语义是发起时间
+  const queryStartedAtRef = useRef(Date.now());
 
   // 查询用最新 settings/上轮 ips —— 事件监听一次性注册,经 ref 防陈旧闭包
   const settingsRef = useRef(settings);
@@ -160,16 +170,19 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
     setWarming(false);
   }, []);
 
+  // 历史写入经此(ref 为真相 + 同步 state + 异步落盘,失败静默:丢一轮持久化可接受);
+  // runQuery 回填 / HistoryPage 单删与清空共用同一条管线
+  const commitHistory = (next: HistoryEntry[]) => {
+    historyRef.current = next;
+    setHistory(next);
+    void saveHistory(next).catch(() => {});
+  };
+
   const runQuery = useCallback(
     async (ips: string[], trunc?: { total: number; max: number }) => {
       const epoch = ++queryEpochRef.current;
+      queryStartedAtRef.current = Date.now(); // 导出 at 的基准
       stopWarmingPoll();
-      // 历史写入经此(ref 为真相 + 同步 state + 异步落盘,失败静默:丢一轮持久化可接受)
-      const commitHistory = (next: HistoryEntry[]) => {
-        historyRef.current = next;
-        setHistory(next);
-        void saveHistory(next).catch(() => {});
-      };
       lastIpsRef.current = ips;
       lastTruncRef.current = trunc;
       setTruncated(trunc ?? null);
@@ -207,7 +220,9 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         const c = consensusOf(secs);
         if (c.kind === "verdict") verdicts[ip] = c.code;
       }
-      commitHistory(stampVerdicts(historyRef.current, ips, verdicts));
+      commitHistory(
+        stampVerdicts(historyRef.current, ips, verdicts, Object.fromEntries(map)),
+      );
       setNoIpHint(false);
       setQuerying(false);
       if (anyWarming(map)) startWarmingRef.current();
@@ -404,8 +419,42 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
   const detailSections = selectedIp ? (results.get(selectedIp) ?? []) : [];
   const invalidLines = invalidLinesOf(results);
   // 左栏分派:查询中且无旧结果 → 骨架;有旧结果 → 保留旧列表(stale-while-revalidate,防重查闪烁);
-  // 未查询 → 粘贴提示;已查询 0 结果 → ResultList 内部空态
+  // 未查询 → 粘贴提示;已查询 0 结果 → ResultList 内部空态;筛选后全空 → 同空态
   const showSkeleton = querying && results.size === 0;
+  // 筛选链路:rows 未筛全集(国家下拉派生也用它)→ filterResults → Map 喂 ResultList
+  const rows = useMemo<ResultRow[]>(() => [...results], [results]);
+  const filteredRows = useMemo(() => filterResults(rows, filters, lang), [rows, filters, lang]);
+  const filteredMap = useMemo(() => new Map(filteredRows), [filteredRows]);
+  const filterCount = [
+    filters.text.trim(),
+    filters.country,
+    filters.verdict,
+    filters.operator !== "any",
+  ].filter(Boolean).length;
+
+  // 筛选把选中行滤掉 → 跳首个可见行;全空清空右栏。查询在飞时不抢跑(渐进流入自管选中)
+  useEffect(() => {
+    if (querying) return;
+    if (selectedIp && filteredRows.some(([ip]) => ip === selectedIp)) return;
+    setSelectedIp(filteredRows.length ? filteredRows[0][0] : null);
+  }, [filteredRows, selectedIp, querying]);
+
+  /** 导出筛选后所见(WYSIWYG):save_csv 取消返回 null 静默;at 用查询发起时刻。 */
+  const exportResults = async () => {
+    if (filteredRows.length === 0) return;
+    try {
+      const saved = await invoke<string | null>("save_csv", {
+        fileName: defaultCsvName(),
+        content: toCsv(
+          filteredRows.map(([ip, sections]) => ({ ip, sections, at: queryStartedAtRef.current })),
+          t,
+        ),
+      });
+      setExportNote(saved ? t("export.saved", { path: saved }) : "");
+    } catch {
+      setExportNote(t("export.failed"));
+    }
+  };
 
   return (
     <div className="dot-grid flex h-screen w-full flex-col overflow-hidden rounded-xl bg-zinc-950 text-zinc-100">
@@ -475,15 +524,14 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
         ) : view === "history" ? (
           <HistoryPage
             entries={history}
+            settings={settings}
+            onGoSettings={goSettings}
             onRequery={ips => {
               setView("main");
               dispatch(ips.join("\n"));   // 重查:走 dispatch 既有管线(提取/限流/noIpHint)
             }}
-            onClear={() => {
-              historyRef.current = [];
-              setHistory([]);
-              void saveHistory([]).catch(() => {});
-            }}
+            onDelete={key => commitHistory(historyRef.current.filter(e => entryKey(e) !== key))}
+            onClear={() => commitHistory([])}
             onClose={() => setView("main")}
           />
         ) : (
@@ -557,23 +605,38 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                 {t("query.invalidLines", { n: invalidLines })}
               </div>
             )}
+            {exportNote && (
+              <div className="truncate border-b border-zinc-800 px-4 py-1 text-[10px] text-zinc-500">{exportNote}</div>
+            )}
 
-            {/* 双栏:左列表 / 右详情 */}
+            {/* 双栏:左列表(工具行 + 可展开筛选栏 + 列表滚动区)/ 右详情 */}
             <div className="flex min-h-0 flex-1">
-              <div
-                className={`w-72 shrink-0 overflow-y-auto border-r border-zinc-800 transition-opacity duration-150 ${
-                  querying && results.size > 0 ? "opacity-50" : ""
-                }`}
-              >
-                {showSkeleton ? (
-                  <ListSkeleton label={t("query.lookingUp")} />
-                ) : results.size === 0 ? (
-                  <div className="flex h-full items-center justify-center px-6">
-                    <span className={`${TECH_LABEL} text-center leading-relaxed`}>{t("query.emptyHint")}</span>
-                  </div>
-                ) : (
-                  <ResultList results={results} selectedIp={selectedIp} onSelect={setSelectedIp} />
-                )}
+              <div className="flex w-72 shrink-0 flex-col border-r border-zinc-800">
+                <Toolbar
+                  open={filterOpen}
+                  onToggle={() => setFilterOpen(o => !o)}
+                  filterCount={filterCount}
+                  onClearFilters={() => setFilters({ ...emptyFilters })}
+                  onExport={() => void exportResults()}
+                  exportDisabled={filteredRows.length === 0}
+                  exportTitle={t("export.button")}
+                />
+                {filterOpen && <FilterBar rows={rows} filters={filters} onChange={setFilters} />}
+                <div
+                  className={`min-h-0 flex-1 overflow-y-auto transition-opacity duration-150 ${
+                    querying && results.size > 0 ? "opacity-50" : ""
+                  }`}
+                >
+                  {showSkeleton ? (
+                    <ListSkeleton label={t("query.lookingUp")} />
+                  ) : results.size === 0 ? (
+                    <div className="flex h-full items-center justify-center px-6">
+                      <span className={`${TECH_LABEL} text-center leading-relaxed`}>{t("query.emptyHint")}</span>
+                    </div>
+                  ) : (
+                    <ResultList results={filteredMap} selectedIp={selectedIp} onSelect={setSelectedIp} />
+                  )}
+                </div>
               </div>
               <div className="min-w-0 flex-1">
                 {selectedIp ? (

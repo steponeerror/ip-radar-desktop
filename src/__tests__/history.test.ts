@@ -93,6 +93,20 @@ describe("stampVerdicts", () => {
     const out = stampVerdicts(prev, ["1.1.1.1"], { "1.1.1.1": "benign" });
     expect(out[0].sections).toBe(sections);
   });
+
+  test("重查已存档条目:第 4 参整份替换旧 sections(不与旧键合并)", () => {
+    const prev: HistoryEntry[] = [
+      {
+        at: 1,
+        ips: ["1.1.1.1", "8.8.8.8"],
+        sections: { "1.1.1.1": [ok({ score: 1 })], "8.8.8.8": [ok({ score: 2 })] },
+      },
+    ];
+    const sections = { "1.1.1.1": [ok({ score: 9 })] };
+    const out = stampVerdicts(prev, ["8.8.8.8", "1.1.1.1"], { "1.1.1.1": "benign" }, sections);
+    expect(out[0].sections).toEqual(sections); // 整份替换:旧 8.8.8.8 键被丢弃,非合并
+    expect(out[0].sections).not.toBe(prev[0].sections);
+  });
 });
 
 describe("enforceArchiveCap(存档行数配额)", () => {
