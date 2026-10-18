@@ -147,9 +147,11 @@ chrome.action.onClicked.addListener(() => {
   });
 });
 async function initialize() {
-  await chrome.storage.local.setAccessLevel({
-    accessLevel: "TRUSTED_CONTEXTS",
-  });
+  // Firefox 没有 setAccessLevel(Chrome 专属);缺省即仅受信上下文可读,跳过不阻塞其余初始化
+  if (chrome.storage.local.setAccessLevel)
+    await chrome.storage.local.setAccessLevel({
+      accessLevel: "TRUSTED_CONTEXTS",
+    });
   const state = await read();
   await chrome.action.setPopup({
     popup: state.settings.openInTab ? "" : "index.html?mode=popup",

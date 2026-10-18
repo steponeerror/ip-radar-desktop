@@ -10,6 +10,11 @@ const RELEASES_API =
   "https://api.github.com/repos/steponeerror/ip-radar-desktop/releases/latest";
 const RELEASES_URL =
   "https://github.com/steponeerror/ip-radar-desktop/releases/latest";
+// 通道资产前缀:Firefox 构建(VITE_CHANNEL=firefox)比对 Firefox zip,默认 Chrome
+const ASSET_PREFIX =
+  import.meta.env.VITE_CHANNEL === "firefox"
+    ? "IP.Radar.Firefox_"
+    : "IP.Radar.Chrome_";
 export function UpdateCheck() {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -39,7 +44,7 @@ export function UpdateCheck() {
           !Array.isArray(release.assets) ||
           !release.assets.some(
             (asset: { name?: string }) =>
-              asset.name?.startsWith("IP.Radar.Chrome_") && asset.name.endsWith(".zip"),
+              asset.name?.startsWith(ASSET_PREFIX) && asset.name.endsWith(".zip"),
           )
         ) {
           setMessage("新版本的擴充功能下載尚未就緒，請稍後再試。");
