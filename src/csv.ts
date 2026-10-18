@@ -105,8 +105,10 @@ export function exportRecord(row: CsvRow, t: T): Record<string, unknown> {
     radarStatus: row.sections.find(s => s.sourceId === "ipradar")?.status,
     abuseStatus: row.sections.find(s => s.sourceId === "abuseipdb")?.status,
     errors: row.sections
-      .filter(s => s.status === "error")
-      .map(s => `${t(`src.${s.sourceId}`)}: ${s.error?.message ?? ""}`),
+      .filter(s => s.status === "error" || s.status === "needs-key")
+      .map(s =>
+        `${t(`src.${s.sourceId}`)}: ${s.status === "needs-key" ? t("guidance.needsKey") : s.error?.message ?? ""}`,
+      ),
   };
 }
 
