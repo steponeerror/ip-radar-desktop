@@ -608,7 +608,7 @@ function AppInner({ settings, onSettingsSaved }: { settings: Settings; onSetting
                   filterCount={filterCount}
                   onClearFilters={() => setFilters({ ...emptyFilters })}
                   onExport={exportResults}
-                  exportDisabled={filteredRows.length === 0}
+                  exportDisabled={querying || filteredRows.length === 0}
                   exportTitle={t("export.button")}
                 />
                 {filterOpen && <FilterBar rows={rows} filters={filters} onChange={setFilters} />}

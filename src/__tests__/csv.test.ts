@@ -73,7 +73,7 @@ describe("toCsv", () => {
 describe("exportRecord parity:桌面 ≡ 插件端(同一 fixtures)", () => {
   const AT = 1760000000000;
 
-  test.each([0, 1])("参考 IP %s 关键值一致(score/country/city/lat/lon/reports/cdn/verdict/consensusValue)", (i) => {
+  test.each([0, 1])("参考 IP %s 关键值一致(score/country/city/lat/lon/isp/asn/tor/reports/cdn/verdict/consensusValue)", (i) => {
     const fx = fixtures[i];
     const a = fx.abuse.data;
     const sections: SourceSection[] = [
@@ -105,6 +105,10 @@ describe("exportRecord parity:桌面 ≡ 插件端(同一 fixtures)", () => {
       score: a.abuseConfidenceScore,
       reports: a.totalReports,
       verdict: fx.radar.threat?.verdict,
+      // isp/asn/tor 在插件端由 lookup 按 Row 字段透传(api.ts:isp=radar as_name→abuse 回退),按同一语义手填
+      isp: fx.radar.as_name?.value || a.isp,
+      asn: fx.radar.asn?.value,
+      tor: !!a.isTor,
     };
     const ext = extExportRecord(extRow);
     for (const key of [
@@ -113,6 +117,9 @@ describe("exportRecord parity:桌面 ≡ 插件端(同一 fixtures)", () => {
       "city",
       "lat",
       "lon",
+      "isp",
+      "asn",
+      "tor",
       "reports",
       "cdn",
       "verdict",
@@ -121,6 +128,23 @@ describe("exportRecord parity:桌面 ≡ 插件端(同一 fixtures)", () => {
       expect(desktop[key]).toEqual(ext[key]);
     }
     expect(desktop.score).toBe(a.abuseConfidenceScore); // 分数确实来自 sections 派生
+  });
+
+  test("needs-key parity:两端 errors 均非空", () => {
+    // 只做存在性 parity,不比字符串:桌面 t("guidance.needsKey") 与插件端「尚未設定 API Key」分属两套 i18n 词条表,文案本就不相等
+    const needsKey: SourceSection = { sourceId: "abuseipdb", status: "needs-key" };
+    const desktop = exportRecord({ ip: "1.2.3.4", sections: [needsKey], at: AT }, identity);
+    // 插件端 api.ts lookup 对 needs-key 段按 `${SourceName}：${s.error?.message || "尚未設定 API Key"}` 填 Row.errors,按同一语义手构
+    const extRow: Row = {
+      ip: "1.2.3.4",
+      queriedAt: new Date(AT).toISOString(),
+      status: "done",
+      errors: ["AbuseIPDB：尚未設定 API Key"],
+      sections: [needsKey],
+    };
+    const ext = extExportRecord(extRow);
+    expect((desktop.errors as string[]).length).toBeGreaterThan(0);
+    expect((ext.errors as string[]).length).toBeGreaterThan(0);
   });
 });
 

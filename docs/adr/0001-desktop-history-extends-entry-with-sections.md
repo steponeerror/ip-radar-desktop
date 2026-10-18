@@ -1,7 +1,21 @@
 # 桌面端历史条目内嵌 sections,不引入批次模型
 
-为承载插件端已验证的历史回看/筛选/导出能力,桌面端在既有 HistoryEntry 上新增可选 `sections: Record<ip, SourceSection[]>`,筛选与导出经 consensusOf 等既有纯函数适配,不搬运插件端 Batch/Row 模型。plugin-store 体积由存档总行数 ≤ 1000 封顶:超额从最老条目整条降级为骨架条目(仅 IP 集合与共识判定),条目总数 200 FIFO 不变。
+为承载插件端已验证的历史回看/筛选/导出能力,桌面端在既有 HistoryEntry 上新增可选 `sections: Record<ip, SourceSection[]>`,筛选与导出经 consensusOf 等既有纯函数适配,不搬运插件端 Batch/Row 模型。plugin-store 体积由存档总行数 ≤ 1000 封顶:超额从最老条目整条降级为骨架条目(仅 IP 集合与共识判定),条目总数 200 FIFO 不变。中止语义:重查发起即作废旧存档,被取代或中止不还原——与既有 verdicts 语义一致。
 
 ## Considered Options
 
 - 全盘对齐插件 Batch/Row 形状(字面复用 filterResults/csv,零适配)——被否:连带 cancelled/queriedAt 等后台泵字段,"批次"与桌面单查询前台流的交互模型冲突;两端行为一致性改由 parity 测试用同一 fixtures 钉住。
+
+## 决策对照(Q1–Q9)
+
+代码注释中的「共识 Qn」均指本表(与 src-tauri/src/main.rs 剪贴板守卫注释里的 Q7 编号无关):
+
+- Q1 存档范围:选范围 B——条目完整内嵌逐 IP sections,骨架降级只作容量溢出兜底,不是默认形态。
+- Q2 历史条目语言:落盘只存原始数据与 i18n key,展示/导出时按当前语言渲染,换语言无需迁移旧档。
+- Q3 容量配额:存档总行数 ≤ 1000(超额最老条目整条降级骨架),条目数 ≤ 200 FIFO。
+- Q4 交互骨架:条目点击分派 + 双栏布局(左列表右详情),主视图与回看子视图同构。
+- Q5 筛选:主视图当前结果与历史回看共用同一套 filterResults 全集,筛选只决行去留。
+- Q6 删除:轻量删除——hover 两步确认单条移除后整体回写,无墓碑/批量机制。
+- Q7 导出:所见即所得(导出当前所见筛选结果),落盘经 rfd 原生另存为;CSV 富列/BOM/公式防护照搬插件端。
+- Q8 存档回填与中止:存档仅查询完成后回填,重查发起即整条替换作废旧档,被取代或中止不还原(verdicts 并存照旧,中止即弃)。
+- Q9 回看:钻入式——从条目钻入只读子视图,复用 ResultList/ResultDetail,不另起页面。
