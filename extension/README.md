@@ -28,6 +28,7 @@ npm run build
 - 新版本重複簽名上傳後，已安裝者由 AMO 自動更新。
 - gecko id 為 `ip-radar-extension@steponeerror.github.io`，一經簽名即永久綁定，不可更換。
 - Firefox 通道的「檢查更新」比對 Release 的 `IP.Radar.Firefox_*.zip` 資產。
+- 發佈時需在 GitHub Release 上傳名為 `IP.Radar.Firefox_v<版本>.zip` 的資產，Firefox 端「檢查更新」才會提示就緒；已簽名安裝者由 AMO 自動更新。
 
 ## 功能
 
