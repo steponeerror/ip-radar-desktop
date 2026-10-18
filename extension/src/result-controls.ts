@@ -50,7 +50,9 @@ export function filterResults(rows: Row[], f: ResultFilters, locale: string) {
       .toLowerCase();
     if (
       !text.includes(f.text.trim().toLowerCase()) ||
-      (f.country && r.country !== f.country) ||
+      (f.country === "disagreed"
+        ? !r.countryDisagreed
+        : f.country && r.country !== f.country) ||
       (f.verdict && r.code !== f.verdict)
     )
       return false;

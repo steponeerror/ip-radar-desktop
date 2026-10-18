@@ -130,7 +130,9 @@ it("initially renders only five IP cards and no row selection controls", () => {
   expect(html).toContain("10.0.0.5");
   expect(html).not.toContain("10.0.0.6");
   expect(html.match(/data-slot="pagination"/g)).toHaveLength(1);
-  expect(html.indexOf('data-slot="pagination"')).toBeGreaterThan(html.indexOf("10.0.0.5"));
+  expect(html.indexOf('data-slot="pagination"')).toBeGreaterThan(
+    html.indexOf("10.0.0.5"),
+  );
   expect(html).not.toContain('role="checkbox"');
   expect(html).not.toContain("開始勾選");
 });
@@ -145,4 +147,25 @@ it("bulk deletion is atomic and protects pending batches", () => {
   expect(state.batches).toHaveLength(3);
   deleteBatches(state, ["first", "second"]);
   expect(state.batches.map((b) => b.id)).toEqual(["pending"]);
+});
+
+it("filters country disagreement separately from verdict and missing countries", () => {
+  const conflict = {
+    ...row("1.1.1.1"),
+    radarCountry: "CA",
+    abuseCountry: "US",
+  };
+  const same = { ...row("1.1.1.2"), radarCountry: "ca", abuseCountry: "CA" };
+  const missing = { ...row("1.1.1.3"), radarCountry: "CA" };
+  const failed = { ...conflict, ip: "1.1.1.4", sections: [] };
+  expect(
+    filterResults(
+      [conflict, same, missing, failed],
+      {
+        ...emptyFilters,
+        country: "disagreed",
+      },
+      "zh-Hant",
+    ),
+  ).toEqual([conflict]);
 });

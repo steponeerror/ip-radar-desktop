@@ -1,3 +1,4 @@
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -38,7 +39,15 @@ import {
 } from "./result-model";
 import type { Row } from "./model";
 
-function Verdict({ code, value }: { code: string; value?: number }) {
+function Verdict({
+  code,
+  value,
+  prefix,
+}: {
+  code: string;
+  value?: number;
+  prefix?: string;
+}) {
   const { t } = useI18n();
   return (
     <Badge
@@ -53,6 +62,7 @@ function Verdict({ code, value }: { code: string; value?: number }) {
               : undefined
       }
     >
+      {prefix}
       {t(verdictLabels[code] || code)}
       {value != null && (code === "malicious" || code === "suspicious")
         ? ` ${value}`
@@ -60,42 +70,21 @@ function Verdict({ code, value }: { code: string; value?: number }) {
     </Badge>
   );
 }
-function ClassificationBadges({ row }: { row: Row }) {
+function InfoBadges({ row }: { row: Row }) {
   const { t } = useI18n();
-  const { classes, infos } = resultOf(row);
+  const { infos } = resultOf(row);
+  if (!infos.length) return null;
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div
-        className="flex flex-nowrap gap-1 overflow-x-auto pb-1"
-        aria-label={t("命中分類")}
-      >
-        {classes.map((c) => (
-          <Badge
-            key={c.type}
-            variant="outline"
-            data-tone={
-              c.verdict === "malicious"
-                ? "danger"
-                : c.verdict === "suspicious"
-                  ? "warning"
-                  : undefined
-            }
-          >
-            {t(classLabel(c.type))} {c.confidence}
-          </Badge>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {infos.map((info) => (
-          <Badge key={info.kind} variant="secondary">
-            {info.kind === "cdn"
-              ? "CDN"
-              : info.kind === "torExit"
-                ? t("Tor 出口")
-                : info.value}
-          </Badge>
-        ))}
-      </div>
+    <div className="flex flex-wrap gap-1">
+      {infos.map((info) => (
+        <Badge key={info.kind} variant="secondary">
+          {info.kind === "cdn"
+            ? "CDN"
+            : info.kind === "torExit"
+              ? t("Tor 出口")
+              : info.value}
+        </Badge>
+      ))}
     </div>
   );
 }
@@ -155,39 +144,47 @@ function RadarBody({ data: d }: { data: LookupResult }) {
             {Object.keys(d.classifications ?? {}).length} {t("組分類 ·")}{" "}
             {detected.length} {t("命中")}
           </p>
-          {detected.map(([key, c]) => (
-            <div key={key} className="flex flex-wrap items-center gap-2">
-              <span className="text-sm">{t(classLabel(key))}</span>
-              <Verdict code={c.verdict} />
-              <span className="text-xs text-muted-foreground">
-                {t("信心")} {c.confidence}
-              </span>
-              {!!c.malware_names?.length && (
-                <p className="w-full break-words text-xs">
-                  {t("惡意軟體：")}
-                  {c.malware_names.join("、")}
-                </p>
-              )}
+          <ScrollArea className="w-full min-w-0" aria-label={t("威脅分類")}>
+            <div className="flex w-max gap-1 pb-3">
+              {detected.map(([key, c]) => (
+                <Badge
+                  key={key}
+                  variant="outline"
+                  data-tone={
+                    c.verdict === "malicious"
+                      ? "danger"
+                      : c.verdict === "suspicious"
+                        ? "warning"
+                        : undefined
+                  }
+                >
+                  {t(classLabel(key))} {c.confidence}
+                </Badge>
+              ))}
             </div>
-          ))}
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+          {detected
+            .filter(([, c]) => c.malware_names?.length)
+            .map(([key, c]) => (
+              <p
+                key={key}
+                className="break-words text-xs text-muted-foreground"
+              >
+                {t(classLabel(key))} · {t("惡意軟體：")}
+                {c.malware_names!.join("、")}
+              </p>
+            ))}
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
           {Object.keys(d.classifications ?? {}).length} {t("組分類 · 0 命中")}
         </p>
       )}
-      <p className="text-xs text-muted-foreground">
-        {t("信心值表示 Radar 對該項資料的確定程度，並非惡意分數。")}
-      </p>
       <section className="flex flex-col gap-2">
         <h4 className="text-sm font-medium">{t("網路資訊")}</h4>
         <Facts
           items={[
-            [
-              "ASN",
-              d.asn?.value != null ? `AS${d.asn.value}` : undefined,
-              d.asn?.confidence,
-            ],
             [t("業者"), d.as_name?.value, d.as_name?.confidence],
             [t("IP 範圍"), d.ip_range?.value, d.ip_range?.confidence],
           ]}
@@ -208,18 +205,6 @@ function RadarBody({ data: d }: { data: LookupResult }) {
                 ? `${d.city.value}${d.city_zh && d.city_zh !== d.city.value ? `（${d.city_zh}）` : ""}`
                 : undefined,
               d.city?.confidence,
-            ],
-            [
-              "GPS",
-              d.location
-                ? `${d.location.lat.toFixed(2)}, ${d.location.lon.toFixed(2)}`
-                : undefined,
-            ],
-            [
-              t("定位精度"),
-              d.location?.accuracy_radius != null
-                ? `±${d.location.accuracy_radius} km`
-                : undefined,
             ],
           ]}
         />
@@ -295,7 +280,6 @@ export function FullResult({ row }: { row: Row }) {
               ],
               [t("AbuseIPDB 分數"), row.score],
               [t("業者"), row.isp],
-              ["ASN", row.asn],
               [t("地區"), countryLabel(row.country, locale)],
               [t("城市"), row.city],
             ]}
@@ -311,7 +295,7 @@ export function FullResult({ row }: { row: Row }) {
             .map((s) => (
               <section
                 key={s.sourceId}
-                className="flex flex-col gap-3 rounded-lg border p-3"
+                className="flex min-w-0 flex-col gap-3 rounded-lg border p-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-medium">
@@ -379,30 +363,27 @@ function ResultItem({
   const score = r.abuse?.score ?? row.score;
   const country =
     countryLabel(r.country, locale) ||
-    (row.radarCountry &&
-    row.abuseCountry &&
-    row.radarCountry !== row.abuseCountry
-      ? t("地區分歧")
-      : t("地區未知"));
+    (r.countryDisagreed ? t("地區分歧") : t("地區未知"));
   return (
     <Card
       size="sm"
-      className={checked !== undefined ? "cursor-pointer" : undefined}
-      data-selected={checked || undefined}
-      onClick={
-        checked === undefined
-          ? undefined
-          : (event) => {
-              if (
-                (event.target as HTMLElement).closest(
-                  'button, input, a, [role="checkbox"]',
-                )
-              )
-                return;
-              if (window.getSelection()?.toString()) return;
-              onSelect?.(!checked);
-            }
+      className={
+        checked !== undefined || row.status === "done"
+          ? "cursor-pointer"
+          : undefined
       }
+      data-selected={checked || undefined}
+      onClick={(event) => {
+        if (
+          (event.target as HTMLElement).closest(
+            'button, input, a, [role="checkbox"], [data-slot="scroll-area"]',
+          )
+        )
+          return;
+        if (window.getSelection()?.toString()) return;
+        if (checked !== undefined) onSelect?.(!checked);
+        else if (row.status === "done") setExpanded((open) => !open);
+      }}
     >
       <CardHeader>
         <CardTitle>
@@ -418,12 +399,25 @@ function ResultItem({
               {row.ip}
             </span>
             {row.status === "done" && (
-              <Badge
-                variant="outline"
-                data-tone={score == null ? undefined : abuseScoreBand(score)}
-              >
-                AbuseIPDB：{score == null ? "—" : `${score}/100`}
-              </Badge>
+              <div className="flex shrink-0 items-center gap-1">
+                <Badge
+                  variant="outline"
+                  data-tone={score == null ? undefined : abuseScoreBand(score)}
+                >
+                  AbuseIPDB：{score == null ? "—" : `${score}/100`}
+                </Badge>
+                {r.radar && (
+                  <Verdict
+                    prefix="IP Radar："
+                    code={
+                      r.radar.is_reserved
+                        ? "reserved"
+                        : r.radar.threat?.verdict || "none"
+                    }
+                    value={r.radar.threat?.confidence}
+                  />
+                )}
+              </div>
             )}
           </div>
         </CardTitle>
@@ -445,7 +439,7 @@ function ResultItem({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <ClassificationBadges row={row} />
+        <InfoBadges row={row} />
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>
             {row.isp || t("業者未知")}

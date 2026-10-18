@@ -17,6 +17,7 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+Enter 開始查詢 · Alt+Space 換行|Enter 开始查询 · Alt+Space 换行|Enter to search · Alt+Space for a new line
 紀錄管理與更新|记录管理与更新|History management & updates
 目前版本|当前版本|Current version
 檢查更新|检查更新|Check for updates

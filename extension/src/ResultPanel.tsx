@@ -214,6 +214,9 @@ export function ResultPanel({
                       onValueChange={(value) => update({ country: value })}
                     >
                       <ChoiceOption value="">{t("全部")}</ChoiceOption>
+                      <ChoiceOption value="disagreed">
+                        {t("地區分歧")}
+                      </ChoiceOption>
                       {countries.map((code) => (
                         <ChoiceOption key={code} value={code}>
                           {countryLabel(code, locale)}

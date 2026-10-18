@@ -45,27 +45,17 @@ describe("desktop parity with captured real responses", () => {
       expect(result.value).toBe(index === 0 ? 100 : undefined);
     },
   );
-  it("simple and full views show the same verdict; full view includes every desktop detail", async () => {
+  it("simple and full views show the same verdict; full view keeps selected details and scrollable threat classifications", async () => {
     const row = await fixtureRow(0);
     const simple = renderToStaticMarkup(<Results rows={[row]} />);
     const full = renderToStaticMarkup(<FullResult row={row} />);
-    for (const text of [
-      "惡意",
-      "100",
-      "黑名單",
-      "掃描",
-      "濫用舉報",
-      "Data Center",
-      "5649",
-    ]) {
+    for (const text of ["惡意", "100", "Data Center", "5649"]) {
       expect(simple).toContain(text);
       expect(full).toContain(text);
     }
     for (const text of [
       "IP 範圍",
       "85.217.149.0/24",
-      "GPS",
-      "定位精度",
       "信心 97",
       "舉報人數",
       "409",
@@ -73,7 +63,27 @@ describe("desktop parity with captured real responses", () => {
       "2026-10-05",
     ])
       expect(full).toContain(text);
+    for (const label of ["黑名單", "掃描", "濫用舉報"]) {
+      expect(simple).not.toContain(label);
+      expect(full).toContain(label);
+    }
+    expect(simple).toContain("IP Radar：惡意 100");
+    expect(simple).not.toContain('aria-label="命中分類"');
     expect(simple).not.toContain("GPS");
+    expect(full).not.toContain("GPS");
+    expect(full).not.toContain("定位精度");
+    expect(full).not.toContain("信心值表示");
+    expect(full).toContain('data-slot="scroll-area-viewport"');
+    const classifications = full.split("威脅分類")[1].split("網路資訊")[0];
+    expect(classifications).not.toContain("信心");
+  });
+  it("uses Radar's own verdict beside AbuseIPDB even when sources disagree", async () => {
+    const row = await fixtureRow(0);
+    const abuse = row.sections!.find((section) => section.sourceId === "abuseipdb")!;
+    abuse.data = { ...abuse.data as object, score: 0 };
+    const html = renderToStaticMarkup(<Results rows={[row]} />);
+    expect(html).toContain("AbuseIPDB：0/100");
+    expect(html).toContain("IP Radar：惡意 100");
   });
   it("benign label has no aggregate number and shows zero hits", async () => {
     const row = await fixtureRow(1);

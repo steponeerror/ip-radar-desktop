@@ -1,5 +1,6 @@
 import {
   consensusOf,
+  claimsOf,
   agreedCountry,
   badgesOf,
   type LookupResult,
@@ -50,7 +51,15 @@ export function resultOf(row: Row) {
   const consensus = consensusOf(sections);
   const code = consensus.kind === "verdict" ? consensus.code : consensus.kind;
   const value = consensus.kind === "verdict" ? consensus.value : undefined;
+  const countries = (
+    row.sections
+      ? claimsOf(sections).map((claim) => claim.country)
+      : [row.radarCountry, row.abuseCountry]
+  )
+    .map((country) => country?.trim().toUpperCase())
+    .filter((country) => country && /^[A-Z]{2}$/.test(country));
   return {
+    countryDisagreed: new Set(countries).size > 1,
     radar,
     abuse,
     consensus,

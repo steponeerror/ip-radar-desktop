@@ -5,6 +5,7 @@ import {
   translateError,
   useI18n,
 } from "./i18n";
+import { clipboardIpList, queryInputKey } from "./query-input";
 import { ResultPanel, QueryExport } from "./ResultPanel";
 import { downloadCsv } from "./csv";
 import { Download } from "lucide-react";
@@ -264,6 +265,8 @@ export default function App() {
   }, [locale]);
   const [ready, setReady] = useState(false);
   const [text, setText] = useState("");
+  const inputEdited = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [view, setView] = useState(
     new URLSearchParams(location.search).get("view") || "query",
   );
@@ -290,6 +293,46 @@ export default function App() {
   const active = activeBatch(state);
   const current = state.batches[0];
   const completed = state.batches.filter(batchFinished);
+  const canStart =
+    ready &&
+    !busy &&
+    !active &&
+    parsed.ips.length > 0 &&
+    !parsed.invalid.length &&
+    parsed.ips.length <= state.settings.maxQueryIps;
+  useEffect(() => {
+    if (!isExtension || !ready || view !== "query" || active) return;
+    let cancelled = false;
+    let reading = false;
+    let attempted = false;
+    const readClipboard = async () => {
+      if (
+        cancelled ||
+        reading ||
+        attempted ||
+        inputEdited.current ||
+        !document.hasFocus()
+      )
+        return;
+      reading = true;
+      try {
+        const value = clipboardIpList(await navigator.clipboard.readText());
+        attempted = true;
+        if (!cancelled && !inputEdited.current && value)
+          setText((current) => current || value);
+      } catch {
+        // Clipboard may be unavailable or denied; manual input remains usable.
+      } finally {
+        reading = false;
+      }
+    };
+    void readClipboard();
+    window.addEventListener("focus", readClipboard);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", readClipboard);
+    };
+  }, [ready, view, !!active]);
   async function action(type: string, data = {}) {
     setBusy(true);
     setNotice("");
@@ -302,6 +345,7 @@ export default function App() {
     }
   }
   async function start() {
+    if (!canStart) return;
     setBusy(true);
     setNotice("");
     try {
@@ -413,12 +457,44 @@ export default function App() {
                       </FieldLabel>
                       <Textarea
                         id="ips"
+                        ref={textareaRef}
+                        aria-describedby="ips-shortcuts"
                         aria-invalid={parsed.invalid.length > 0}
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
+                        onChange={(e) => {
+                          inputEdited.current = true;
+                          setText(e.target.value);
+                        }}
+                        onKeyDown={(e) => {
+                          const key = queryInputKey(e.nativeEvent);
+                          if (!key) return;
+                          e.preventDefault();
+                          if (key === "submit") {
+                            if (!e.repeat) void start();
+                            return;
+                          }
+                          inputEdited.current = true;
+                          const input = e.currentTarget;
+                          const from = input.selectionStart;
+                          const to = input.selectionEnd;
+                          setText(
+                            input.value.slice(0, from) +
+                              "\n" +
+                              input.value.slice(to),
+                          );
+                          requestAnimationFrame(() =>
+                            textareaRef.current?.setSelectionRange(
+                              from + 1,
+                              from + 1,
+                            ),
+                          );
+                        }}
                         placeholder={"1.1.1.1\n8.8.8.8\n2606:4700:4700::1111"}
                         className="min-h-28 max-h-48"
                       />
+                      <FieldDescription id="ips-shortcuts">
+                        {t("Enter 開始查詢 · Alt+Space 換行")}
+                      </FieldDescription>
                       {parsed.invalid.length > 0 && (
                         <FieldError>
                           {t("無效項目：")}
@@ -448,16 +524,7 @@ export default function App() {
                         {t("停止查詢")}
                       </Button>
                     ) : (
-                      <Button
-                        disabled={
-                          !ready ||
-                          busy ||
-                          !parsed.ips.length ||
-                          !!parsed.invalid.length ||
-                          parsed.ips.length > state.settings.maxQueryIps
-                        }
-                        onClick={() => void start()}
-                      >
+                      <Button disabled={!canStart} onClick={() => void start()}>
                         {t("開始查詢")}
                         <ArrowRight data-icon="inline-end" />
                       </Button>
