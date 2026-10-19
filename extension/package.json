@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
+    "build:firefox": "VITE_CHANNEL=firefox npm run build && node scripts/make-firefox-manifest.mjs && rm -f IP.Radar.Firefox_v$npm_package_version.zip && cd dist && zip -qr ../IP.Radar.Firefox_v$npm_package_version.zip .",
     "test": "vitest run"
   },
   "dependencies": {

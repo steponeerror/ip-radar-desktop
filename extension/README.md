@@ -19,6 +19,17 @@ npm run build
 
 也可解壓 `ip-radar-extension.zip`，載入解壓後包含 `manifest.json` 的資料夾。
 
+## Firefox
+
+在 `extension` 目錄執行 `npm run build:firefox`：產出 Firefox 版 `dist`（manifest 由 Chrome 版派生，`background` 改為事件頁並加入 `browser_specific_settings`），並打包 `IP.Radar.Firefox_v<版本>.zip`。
+
+- 臨時安裝：Firefox 開啟 `about:debugging#/runtime/this-firefox`，按「Load Temporary Add-on」，選擇 `dist` 內的 `manifest.json`。臨時附加元件重啟 Firefox 後即消失。
+- 永久安裝需 AMO 簽名（免費，unlisted 不會公開上架）：建立 `amo.env`（內含 `WEB_EXT_API_KEY`、`WEB_EXT_API_SECRET`），執行 `set -a; . amo.env; set +a` 後再 `npx web-ext sign --source-dir dist --channel unlisted`，簽好的 XPI 在 `web-ext-artifacts/`。
+- 新版本重複簽名上傳後，已安裝者由 AMO 自動更新。
+- gecko id 為 `ip-radar-extension@steponeerror.github.io`，一經簽名即永久綁定，不可更換。
+- Firefox 通道的「檢查更新」比對 Release 的 `IP.Radar.Firefox_*.zip` 資產。
+- 發佈時需在 GitHub Release 上傳名為 `IP.Radar.Firefox_v<版本>.zip` 的資產，Firefox 端「檢查更新」才會提示就緒；已簽名安裝者由 AMO 自動更新。
+
 ## 功能
 
 - 一批預設最多 100 個 IPv4 / IPv6，可在設定調整單次最大查詢數（1–1,000）；換行、逗號、分號或空格分隔，去重並提示無效項目。
