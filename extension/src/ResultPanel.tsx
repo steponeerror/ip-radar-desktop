@@ -1,3 +1,4 @@
+import { isExtension, send } from "./client";
 import {
   Pagination,
   PaginationContent,
@@ -40,7 +41,9 @@ import {
   type ScoreOperator,
 } from "./result-controls";
 export function QueryExport({ batch }: { batch?: Batch }) {
-  const { t, locale } = useI18n();
+  const { t, locale, errorText } = useI18n();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const finished = batchFinished(batch);
   const running = !!batch?.rows.length && !batch.cancelled && !finished;
   const completed = queriedRows(batch);
@@ -50,14 +53,34 @@ export function QueryExport({ batch }: { batch?: Batch }) {
         <Button
           size="sm"
           variant="outline"
-          disabled={!completed.length}
-          onClick={() => {
-            if (running && completed.length) downloadCsv(completed, locale);
+          disabled={exporting || !completed.length}
+          onClick={async () => {
+            if (!running || !batch) return;
+            setExporting(true);
+            setExportError("");
+            try {
+              const snapshot = isExtension
+                ? (await send("snapshot", { id: batch.id })).batches.find(
+                    (item) => item.id === batch.id,
+                  )
+                : batch;
+              const rows = queriedRows(snapshot);
+              if (rows.length) downloadCsv(rows, locale);
+            } catch (e) {
+              setExportError(e instanceof Error ? e.message : t("操作失敗"));
+            } finally {
+              setExporting(false);
+            }
           }}
         >
           <Download data-icon="inline-start" />
           {t("導出已查詢")} ({completed.length})
         </Button>
+      )}
+      {exportError && (
+        <p role="alert" className="text-xs text-destructive">
+          {errorText(exportError)}
+        </p>
       )}
       <Button
         size="sm"

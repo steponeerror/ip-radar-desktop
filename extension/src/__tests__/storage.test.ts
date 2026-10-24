@@ -62,7 +62,7 @@ it("applies batch, quota, insertion and deletion events without rereading or rep
   ).toEqual(["current"]);
 });
 
-it("each streamed result reads and writes only its own batch even with 49 historical batches", async () => {
+it("coalesces streamed results into one batch write without reading 49 historical batches", async () => {
   vi.resetModules();
   const state = initialState();
   state.settings.abuseEnabled = false;
@@ -127,14 +127,8 @@ it("each streamed result reads and writes only its own batch even with 49 histor
   const writes = storage.local.set.mock.calls.map(([value]) =>
     Object.keys(value),
   );
-  expect(readKeys.filter((key) => key.startsWith("radar.batch."))).toEqual([
-    currentKey,
-    currentKey,
-    currentKey,
-  ]);
+  expect(readKeys.filter((key) => key.startsWith("radar.batch."))).toEqual([]);
   expect(writes.filter((keys) => keys.includes(currentKey))).toEqual([
-    [currentKey],
-    [currentKey],
     [currentKey],
   ]);
   expect(readKeys).not.toContain("radarState");

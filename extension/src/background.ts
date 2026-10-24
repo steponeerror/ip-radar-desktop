@@ -1,3 +1,4 @@
+import { BatchBuffer } from "./batch-buffer";
 import { abuseKeyId } from "./abuse-limits";
 import {
   STORAGE,
@@ -17,7 +18,8 @@ import {
 import { queryBatch, mergeSection } from "./api";
 let serial: Promise<unknown> = Promise.resolve();
 let running = false;
-let controller: AbortController | undefined;
+let currentRun:
+  { buffer: BatchBuffer; controller: AbortController } | undefined;
 function mutate<T>(fn: () => T | Promise<T>): Promise<T> {
   const task = serial.then(fn);
   serial = task.catch(() => {});
@@ -27,15 +29,36 @@ async function pump() {
   if (running) return;
   running = true;
   try {
+    // Preserve dirty memory after a storage failure; retry it before resuming saved work.
+    if (currentRun) {
+      await currentRun.buffer.flush();
+      currentRun = undefined;
+    }
     while (true) {
-      await serial;
-      const state = await readActive();
-      const batch = state.batch;
-      if (!batch) {
+      const prepared = await mutate(async () => {
+        const state = await readActive();
+        if (!state.batch) return;
+        const controller = new AbortController();
+        const buffer = new BatchBuffer(
+          state.batch,
+          (snapshot) =>
+            mutate(() =>
+              chrome.storage.local.set({
+                [STORAGE.batch(snapshot.id)]: snapshot,
+              }),
+            ),
+          (error) => controller.abort(error),
+        );
+        currentRun = { buffer, controller };
+        return { state, run: currentRun };
+      });
+      if (!prepared) {
         await chrome.alarms.clear("resume");
         break;
       }
-      controller = new AbortController();
+      const { state, run } = prepared;
+      const { buffer, controller } = run;
+      const batch = buffer.batch;
       const sourceIds =
         batch.sourceIds ??
         [
@@ -48,51 +71,54 @@ async function pump() {
         abuseEnabled: sourceIds.includes("abuseipdb"),
       };
       const keyId = await abuseKeyId(settings.abuseKey);
-      await queryBatch(
-        batch.rows,
-        settings,
-        controller.signal,
-        async (ip, section) => {
-          await mutate(async () => {
-            const target = await readBatch(batch.id);
-            if (!target || target.cancelled) return;
-            target.sourceIds = sourceIds;
-            target.rows = target.rows.map((r) =>
-              r.ip === ip ? mergeSection(r, section, sourceIds) : r,
-            );
-            await chrome.storage.local.set({
-              [STORAGE.batch(batch.id)]: target,
-            });
-          });
-        },
-        {
-          state: state.abuseLimits?.[keyId],
-          save: async (limits) => {
-            await mutate(async () => {
-              const saved =
-                (await chrome.storage.local.get(STORAGE.limits))[
-                  STORAGE.limits
-                ] ?? {};
-              await chrome.storage.local.set({
-                [STORAGE.limits]: { ...saved, [keyId]: limits },
-              });
-            });
+      try {
+        await queryBatch(
+          batch.rows,
+          settings,
+          controller.signal,
+          async (ip, section) => {
+            if (controller.signal.aborted) return;
+            buffer.update((target) => ({
+              ...target,
+              sourceIds,
+              rows: target.rows.map((r) =>
+                r.ip === ip ? mergeSection(r, section, sourceIds) : r,
+              ),
+            }));
           },
-        },
-      );
+          {
+            state: state.abuseLimits?.[keyId],
+            save: async (limits) => {
+              await mutate(async () => {
+                const saved =
+                  (await chrome.storage.local.get(STORAGE.limits))[
+                    STORAGE.limits
+                  ] ?? {};
+                await chrome.storage.local.set({
+                  [STORAGE.limits]: { ...saved, [keyId]: limits },
+                });
+              });
+            },
+          },
+        );
+      } finally {
+        // Completion/cancellation never reports success before the latest results are durable.
+        await buffer.flush();
+      }
       await mutate(async () => {
         const index = await readIndex();
-        if (index.activeId === batch.id) {
+        if (index.activeId === batch.id && batchFinished(buffer.batch)) {
           delete index.activeId;
           await chrome.storage.local.set({ [STORAGE.index]: index });
         }
+        if (currentRun === run) currentRun = undefined;
       });
     }
   } finally {
     running = false;
-    controller = undefined;
   }
 }
+
 async function command(message: {
   type: string;
   text?: string;
@@ -101,7 +127,12 @@ async function command(message: {
   id?: string;
   ids?: string[];
 }) {
-  if (message.type === "get") return read();
+  if (message.type === "get" || message.type === "snapshot") {
+    const run = currentRun;
+    if (run && (!message.id || message.id === run.buffer.batch.id))
+      await run.buffer.flush();
+    return read();
+  }
   if (message.type === "settings") {
     await mutate(async () => {
       const state = await readMeta();
@@ -122,7 +153,8 @@ async function command(message: {
   } else if (message.type === "start") {
     await mutate(async () => {
       const state = await readActive();
-      if (state.batch) throw new Error("已有批次正在查詢，請等待完成或停止。");
+      if (state.batch || currentRun)
+        throw new Error("已有批次正在查詢，請等待完成或停止。");
       validateSettings(state.settings);
       if (!state.settings.radarEnabled && !state.settings.abuseKey)
         throw new Error("請先設定 AbuseIPDB API Key。");
@@ -153,17 +185,26 @@ async function command(message: {
     await chrome.alarms.create("resume", { periodInMinutes: 1 });
     void pump().catch(console.error);
   } else if (message.type === "cancel") {
-    await mutate(async () => {
+    // Select/stop the in-memory run under the same lock used to start it.
+    const run = await mutate(async () => {
+      if (currentRun) {
+        currentRun.buffer.stop();
+        currentRun.controller.abort();
+        return currentRun;
+      }
       const state = await readActive();
       const batch = state.batch;
       if (batch) {
         batch.cancelled = true;
-        batch.rows.forEach((r) => {
-          if (r.status === "pending") {
-            r.status = "done";
-            r.errors.push("已停止，未完成查詢");
-          }
-        });
+        batch.rows = batch.rows.map((r) =>
+          r.status === "pending"
+            ? {
+                ...r,
+                status: "done",
+                errors: [...r.errors, "已停止，未完成查詢"],
+              }
+            : r,
+        );
         delete state.index.activeId;
         await chrome.storage.local.set({
           [STORAGE.batch(batch.id)]: batch,
@@ -171,8 +212,22 @@ async function command(message: {
         });
       }
     });
-    controller?.abort();
+    if (run) {
+      await run.buffer.flush();
+      await mutate(async () => {
+        const index = await readIndex();
+        if (index.activeId === run.buffer.batch.id) {
+          delete index.activeId;
+          await chrome.storage.local.set({ [STORAGE.index]: index });
+        }
+      });
+    }
   } else if (message.type === "delete") {
+    const run = currentRun;
+    if (run && (message.ids ?? [message.id]).includes(run.buffer.batch.id)) {
+      if (!run.buffer.batch.cancelled) throw new Error("請先停止查詢再刪除。");
+      await run.buffer.flush();
+    }
     await mutate(async () => {
       const index = await readIndex();
       const ids = message.ids ?? (message.id ? [message.id] : []);
