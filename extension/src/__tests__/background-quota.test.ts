@@ -1,3 +1,4 @@
+import { memoryStorage } from "./memory-storage";
 import { afterEach, expect, it, vi } from "vitest";
 import { initialState, type State } from "../model";
 import { abuseKeyId } from "../abuse-limits";
@@ -41,14 +42,12 @@ it("persists cooldown across worker restarts, isolates keys, and leaves Radar ru
     );
   });
   vi.stubGlobal("fetch", fetch);
+  const storage = memoryStorage(state, (next) => {
+    state = next;
+  });
   vi.stubGlobal("chrome", {
     storage: {
-      local: {
-        get: async () => ({ radarState: structuredClone(state) }),
-        set: async (value: { radarState: State }) => {
-          state = structuredClone(value.radarState);
-        },
-      },
+      local: storage.local,
     },
     runtime: {
       id: "test",

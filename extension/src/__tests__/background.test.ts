@@ -1,3 +1,4 @@
+import { memoryStorage } from "./memory-storage";
 import { it, expect, vi, afterEach } from "vitest";
 import { initialState, type State } from "../model";
 afterEach(() => vi.unstubAllGlobals());
@@ -46,6 +47,9 @@ it("background persists batches, survives UI closure, cancels safely, resumes pe
       });
     }),
   );
+  const storage = memoryStorage(state, (next) => {
+    state = next;
+  });
   vi.stubGlobal("chrome", {
     runtime: {
       id: "test",
@@ -55,13 +59,7 @@ it("background persists batches, survives UI closure, cancels safely, resumes pe
       onStartup: { addListener: vi.fn() },
     },
     storage: {
-      local: {
-        get: async () => ({ radarState: structuredClone(state) }),
-        set: async (value: { radarState: State }) => {
-          state = structuredClone(value.radarState);
-        },
-        setAccessLevel: vi.fn(),
-      },
+      local: storage.local,
     },
     alarms: {
       create: vi.fn(),
@@ -111,6 +109,7 @@ it("background persists batches, survives UI closure, cancels safely, resumes pe
     createdAt: new Date().toISOString(),
     rows: [{ ip: "9.9.9.9", queriedAt: "", status: "pending", errors: [] }],
   });
+  storage.restore(state);
   completeFetch = undefined;
   alarm({ name: "resume" });
   await vi.waitFor(() => expect(completeFetch).toBeTypeOf("function"));

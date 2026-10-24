@@ -46,6 +46,10 @@ AbuseIPDB 遇到 429 即停止本批次該來源的後續請求，不在原批�
 
 地區與桌面版一致：成功來源的地區一致才顯示總地區；不同時顯示地區分歧，各來源地區仍保留於完整模式及 CSV。AbuseIPDB 顯示原始 0–100 分。
 
+儲存分為 `radar.settings`（設定）、`radar.abuseLimits`（額度與冷卻）、`radar.batchIndex`（批次索引／進行中批次 ID），以及每批獨立的 `radar.batch.<id>`。每筆來源結果仍立即保存並等待該次寫入完成，但只讀寫所屬批次；額度變更只讀寫額度資料。畫面依對應儲存事件更新，頻率不變。完整歷史僅在開啟介面或操作要求完整快照時組合，不會在每筆結果到達時重讀。尚未採用合併寫入或延後保存。
+
+首次使用分開儲存時，只保留舊格式的設定與冷卻資訊；不自動遷移舊查詢紀錄。舊 `radarState` 原始資料保留但不再供新紀錄頁使用，後續查詢不會讀寫它。
+
 Key 存在 `chrome.storage.local`，不會同步、匯出或寫入批次紀錄；這是本機儲存，並非加密金鑰庫。查詢時僅送往對應服務。沒有 content scripts，也不讀取目前瀏覽網頁。
 
 權限設計依 [Chrome 跨來源請求文件](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)：AbuseIPDB 為固定主機權限，自訂 Server 則於使用者操作時請求 optional host permission。

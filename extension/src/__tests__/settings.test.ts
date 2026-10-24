@@ -1,3 +1,4 @@
+import { memoryStorage } from "./memory-storage";
 import { it, expect, vi, afterEach } from "vitest";
 import { initialState, type State } from "../model";
 afterEach(() => vi.unstubAllGlobals());
@@ -5,14 +6,12 @@ it("autosaves partial input and serializes rapid patches without losing other se
   let stored: State = initialState();
   let listener: Function = () => {};
   const setPopup = vi.fn(async () => {});
+  const storage = memoryStorage(stored, (next) => {
+    stored = next;
+  });
   vi.stubGlobal("chrome", {
     storage: {
-      local: {
-        get: async () => ({ radarState: structuredClone(stored) }),
-        set: async ({ radarState }: { radarState: State }) => {
-          stored = structuredClone(radarState);
-        },
-      },
+      local: storage.local,
     },
     runtime: {
       id: "test",

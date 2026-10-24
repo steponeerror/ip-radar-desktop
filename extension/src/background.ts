@@ -1,31 +1,25 @@
 import { abuseKeyId } from "./abuse-limits";
-import { deleteBatches } from "./result-controls";
 import {
-  activeBatch,
-  normalizeState,
+  STORAGE,
+  readMeta,
+  readIndex,
+  readBatch,
+  readActive,
+  readState as read,
+} from "./storage";
+import { batchFinished } from "./result-controls";
+import {
   validateQuery,
   validQueryLimit,
   validateSettings,
-  type State,
   type Settings,
 } from "./model";
 import { queryBatch, mergeSection } from "./api";
-const KEY = "radarState";
 let serial: Promise<unknown> = Promise.resolve();
 let running = false;
 let controller: AbortController | undefined;
-async function read(): Promise<State> {
-  return normalizeState(
-    (await chrome.storage.local.get(KEY))[KEY] as State | undefined,
-  );
-}
-function mutate<T>(fn: (state: State) => T | Promise<T>): Promise<T> {
-  const task = serial.then(async () => {
-    const state = await read();
-    const result = await fn(state);
-    await chrome.storage.local.set({ [KEY]: state });
-    return result;
-  });
+function mutate<T>(fn: () => T | Promise<T>): Promise<T> {
+  const task = serial.then(fn);
   serial = task.catch(() => {});
   return task;
 }
@@ -35,8 +29,8 @@ async function pump() {
   try {
     while (true) {
       await serial;
-      const state = await read();
-      const batch = activeBatch(state);
+      const state = await readActive();
+      const batch = state.batch;
       if (!batch) {
         await chrome.alarms.clear("resume");
         break;
@@ -59,25 +53,40 @@ async function pump() {
         settings,
         controller.signal,
         async (ip, section) => {
-          await mutate((current) => {
-            const target = current.batches.find((b) => b.id === batch.id);
+          await mutate(async () => {
+            const target = await readBatch(batch.id);
             if (!target || target.cancelled) return;
             target.sourceIds = sourceIds;
             target.rows = target.rows.map((r) =>
               r.ip === ip ? mergeSection(r, section, sourceIds) : r,
             );
+            await chrome.storage.local.set({
+              [STORAGE.batch(batch.id)]: target,
+            });
           });
         },
         {
           state: state.abuseLimits?.[keyId],
           save: async (limits) => {
-            await mutate((current) => {
-              current.abuseLimits ??= {};
-              current.abuseLimits[keyId] = limits;
+            await mutate(async () => {
+              const saved =
+                (await chrome.storage.local.get(STORAGE.limits))[
+                  STORAGE.limits
+                ] ?? {};
+              await chrome.storage.local.set({
+                [STORAGE.limits]: { ...saved, [keyId]: limits },
+              });
             });
           },
         },
       );
+      await mutate(async () => {
+        const index = await readIndex();
+        if (index.activeId === batch.id) {
+          delete index.activeId;
+          await chrome.storage.local.set({ [STORAGE.index]: index });
+        }
+      });
     }
   } finally {
     running = false;
@@ -94,28 +103,31 @@ async function command(message: {
 }) {
   if (message.type === "get") return read();
   if (message.type === "settings") {
-    await mutate(async (state) => {
+    await mutate(async () => {
+      const state = await readMeta();
       const patch = { ...(message.patch ?? message.settings ?? {}) };
       for (const key of ["serverUrl", "radarKey", "abuseKey"] as const) {
         if (patch[key] != null) patch[key] = patch[key].trim();
       }
       if ("maxQueryIps" in patch && !validQueryLimit(patch.maxQueryIps))
         throw new Error("單次最大查詢數必須是正整數。");
-      state.settings = { ...state.settings, ...patch };
+      await chrome.storage.local.set({
+        [STORAGE.settings]: { ...state.settings, ...patch },
+      });
       if (patch.openInTab != null)
         await chrome.action.setPopup({
-          popup: state.settings.openInTab ? "" : "index.html?mode=popup",
+          popup: patch.openInTab ? "" : "index.html?mode=popup",
         });
     });
   } else if (message.type === "start") {
-    await mutate((state) => {
-      if (activeBatch(state))
-        throw new Error("已有批次正在查詢，請等待完成或停止。");
+    await mutate(async () => {
+      const state = await readActive();
+      if (state.batch) throw new Error("已有批次正在查詢，請等待完成或停止。");
       validateSettings(state.settings);
       if (!state.settings.radarEnabled && !state.settings.abuseKey)
         throw new Error("請先設定 AbuseIPDB API Key。");
       const ips = validateQuery(message.text || "", state.settings.maxQueryIps);
-      state.batches.unshift({
+      const batch = {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
         sourceIds: [
@@ -125,17 +137,25 @@ async function command(message: {
         rows: ips.map((ip) => ({
           ip,
           queriedAt: "",
-          status: "pending",
+          status: "pending" as const,
           errors: [],
         })),
+      };
+      const ids = [batch.id, ...state.index.ids].slice(0, 50);
+      await chrome.storage.local.set({
+        [STORAGE.batch(batch.id)]: batch,
+        [STORAGE.index]: { ids, activeId: batch.id },
       });
-      state.batches = state.batches.slice(0, 50);
+      const removed = state.index.ids.filter((id) => !ids.includes(id));
+      if (removed.length)
+        await chrome.storage.local.remove(removed.map(STORAGE.batch));
     });
     await chrome.alarms.create("resume", { periodInMinutes: 1 });
     void pump().catch(console.error);
   } else if (message.type === "cancel") {
-    await mutate((state) => {
-      const batch = activeBatch(state);
+    await mutate(async () => {
+      const state = await readActive();
+      const batch = state.batch;
       if (batch) {
         batch.cancelled = true;
         batch.rows.forEach((r) => {
@@ -144,12 +164,25 @@ async function command(message: {
             r.errors.push("已停止，未完成查詢");
           }
         });
+        delete state.index.activeId;
+        await chrome.storage.local.set({
+          [STORAGE.batch(batch.id)]: batch,
+          [STORAGE.index]: state.index,
+        });
       }
     });
     controller?.abort();
   } else if (message.type === "delete") {
-    await mutate((state) => {
-      deleteBatches(state, message.ids ?? (message.id ? [message.id] : []));
+    await mutate(async () => {
+      const index = await readIndex();
+      const ids = message.ids ?? (message.id ? [message.id] : []);
+      const batches = await Promise.all(ids.map(readBatch));
+      if (batches.some((b) => b && !batchFinished(b)))
+        throw new Error("請先停止查詢再刪除。");
+      index.ids = index.ids.filter((id) => !ids.includes(id));
+      if (index.activeId && ids.includes(index.activeId)) delete index.activeId;
+      await chrome.storage.local.set({ [STORAGE.index]: index });
+      if (ids.length) await chrome.storage.local.remove(ids.map(STORAGE.batch));
     });
   } else throw new Error("未知操作");
   return read();
@@ -178,11 +211,11 @@ async function initialize() {
   await chrome.storage.local.setAccessLevel({
     accessLevel: "TRUSTED_CONTEXTS",
   });
-  const state = await read();
+  const state = await readActive();
   await chrome.action.setPopup({
     popup: state.settings.openInTab ? "" : "index.html?mode=popup",
   });
-  if (activeBatch(state)) {
+  if (state.batch) {
     await chrome.alarms.create("resume", { periodInMinutes: 1 });
     void pump().catch(console.error);
   }

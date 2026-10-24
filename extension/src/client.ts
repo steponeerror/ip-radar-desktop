@@ -1,3 +1,4 @@
+import { applyStorageChanges } from "./storage";
 import {
   initialState,
   normalizeState,
@@ -27,14 +28,17 @@ export async function send(type: string, data = {}): Promise<State> {
   if (reply.error) throw new Error(reply.error);
   return normalizeState(reply.state);
 }
-export function subscribe(callback: (state: State) => void) {
+export function subscribe(callback: (update: (state: State) => State) => void) {
   if (!isExtension) return () => {};
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
     area: string,
   ) => {
-    if (area === "local" && changes.radarState?.newValue)
-      callback(normalizeState(changes.radarState.newValue as State));
+    if (
+      area === "local" &&
+      Object.keys(changes).some((key) => key.startsWith("radar."))
+    )
+      callback((state) => applyStorageChanges(state, changes));
   };
   chrome.storage.onChanged.addListener(listener);
   return () => chrome.storage.onChanged.removeListener(listener);
