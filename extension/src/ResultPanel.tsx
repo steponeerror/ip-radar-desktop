@@ -31,6 +31,7 @@ import { countryLabel, resultOf, verdictLabels } from "./result-model";
 import {
   PAGE_SIZE,
   batchFinished,
+  queriedRows,
   emptyFilters,
   filterResults,
   toggleSelection,
@@ -40,18 +41,36 @@ import {
 } from "./result-controls";
 export function QueryExport({ batch }: { batch?: Batch }) {
   const { t, locale } = useI18n();
+  const finished = batchFinished(batch);
+  const running = !!batch?.rows.length && !batch.cancelled && !finished;
+  const completed = queriedRows(batch);
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={!batchFinished(batch)}
-      onClick={() => {
-        if (batchFinished(batch)) downloadCsv(batch!.rows, locale);
-      }}
-    >
-      <Download data-icon="inline-start" />
-      {t("匯出 CSV")}
-    </Button>
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {running && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!completed.length}
+          onClick={() => {
+            if (running && completed.length) downloadCsv(completed, locale);
+          }}
+        >
+          <Download data-icon="inline-start" />
+          {t("導出已查詢")} ({completed.length})
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={!finished}
+        onClick={() => {
+          if (finished) downloadCsv(batch!.rows, locale);
+        }}
+      >
+        <Download data-icon="inline-start" />
+        {t("匯出 CSV")}
+      </Button>
+    </div>
   );
 }
 export function PageControls({
@@ -403,7 +422,11 @@ export function ResultPanel({
       )}
       {!finished && rows.length > 0 && (
         <p role="status" className="text-xs text-muted-foreground">
-          {t("查詢完成後才能匯出 CSV。")}
+          {t(
+            history
+              ? "查詢完成後才能匯出 CSV。"
+              : "查詢中可導出目前已取得的資料；未完成來源留空，查詢繼續進行。",
+          )}
         </p>
       )}
       <Results

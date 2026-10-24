@@ -79,8 +79,10 @@ describe("desktop parity with captured real responses", () => {
   });
   it("uses Radar's own verdict beside AbuseIPDB even when sources disagree", async () => {
     const row = await fixtureRow(0);
-    const abuse = row.sections!.find((section) => section.sourceId === "abuseipdb")!;
-    abuse.data = { ...abuse.data as object, score: 0 };
+    const abuse = row.sections!.find(
+      (section) => section.sourceId === "abuseipdb",
+    )!;
+    abuse.data = { ...(abuse.data as object), score: 0 };
     const html = renderToStaticMarkup(<Results rows={[row]} />);
     expect(html).toContain("AbuseIPDB：0/100");
     expect(html).toContain("IP Radar：惡意 100");
@@ -184,4 +186,15 @@ describe("boundary conditions", () => {
       "請重新查詢",
     );
   });
+});
+
+it("renders Radar results and detail controls while Abuse is still pending", async () => {
+  const row = await fixtureRow(0);
+  row.sections = row.sections!.filter((s) => s.sourceId === "ipradar");
+  row.status = "pending";
+  delete row.score;
+  const html = renderToStaticMarkup(<Results rows={[row]} />);
+  expect(html).toContain("IP Radar：");
+  expect(html).toContain("查看詳情");
+  expect(html).toContain("等待查詢");
 });

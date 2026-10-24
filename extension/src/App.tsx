@@ -1,3 +1,5 @@
+import { AbuseStatus } from "./AbuseStatus";
+import { batchProgress } from "./progress";
 import {
   I18nContext,
   resolveLanguage,
@@ -139,13 +141,11 @@ function SettingsForm({
             />
             <FieldDescription>
               {t(
-                "預設 100；可設定 1–1,000，以去重後的 IP 數量計算，不會增加 API 配額。",
+                "預設 100；可自訂正整數，以去重後的 IP 數量計算，不會增加 API 配額。",
               )}
             </FieldDescription>
             {limitInvalid && (
-              <FieldError>
-                {t("單次最大查詢數必須是 1–1,000 的整數。")}
-              </FieldError>
+              <FieldError>{t("單次最大查詢數必須是正整數。")}</FieldError>
             )}
           </Field>
           <Field orientation="horizontal">
@@ -532,7 +532,7 @@ export default function App() {
                   </div>
                 </CardFooter>
               </Card>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <h2
                     id="latest-results"
@@ -548,6 +548,18 @@ export default function App() {
                 </div>
                 <QueryExport batch={current} />
               </div>
+              {state.settings.abuseEnabled && (
+                <AbuseStatus
+                  apiKey={state.settings.abuseKey}
+                  records={state.abuseLimits}
+                  compact
+                />
+              )}
+              {current && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  {batchProgress(current, t)}
+                </p>
+              )}
               {active && (
                 <p role="status" className="text-xs text-muted-foreground">
                   {t("背景查詢中，重新開啟查詢頁可查看進度。")}
@@ -581,6 +593,10 @@ export default function App() {
                   }}
                 />
               )}
+              <AbuseStatus
+                apiKey={state.settings.abuseKey}
+                records={state.abuseLimits}
+              />
               <Card>
                 <CardHeader>
                   <CardTitle>{t("紀錄管理與更新")}</CardTitle>

@@ -6,7 +6,7 @@ it("background persists batches, survives UI closure, cancels safely, resumes pe
     ...initialState(),
     settings: {
       ...initialState().settings,
-      radarEnabled: false,
+      radarEnabled: true,
       abuseKey: "test",
     },
   };
@@ -15,22 +15,36 @@ it("background persists batches, survives UI closure, cancels safely, resumes pe
   let completeFetch: (() => void) | undefined;
   vi.stubGlobal(
     "fetch",
-    vi.fn(
-      (_url: string, init: RequestInit) =>
-        new Promise<Response>((resolve, reject) => {
-          completeFetch = () =>
-            resolve(
-              new Response(
+    vi.fn((_url: string, init: RequestInit) => {
+      if (!_url.includes("abuseipdb")) {
+        const ips = JSON.parse(init.body as string).ips as string[];
+        return Promise.resolve(
+          new Response(
+            ips
+              .map((ip) =>
                 JSON.stringify({
-                  data: { abuseConfidenceScore: 12, countryCode: "HK" },
+                  type: "row",
+                  result: { ip, country: { value: "HK" } },
                 }),
-              ),
-            );
-          init.signal?.addEventListener("abort", () =>
-            reject(new Error("aborted")),
+              )
+              .join("\n") + '\n{"type":"done"}\n',
+          ),
+        );
+      }
+      return new Promise<Response>((resolve, reject) => {
+        completeFetch = () =>
+          resolve(
+            new Response(
+              JSON.stringify({
+                data: { abuseConfidenceScore: 12, countryCode: "HK" },
+              }),
+            ),
           );
-        }),
-    ),
+        init.signal?.addEventListener("abort", () =>
+          reject(new Error("aborted")),
+        );
+      });
+    }),
   );
   vi.stubGlobal("chrome", {
     runtime: {
@@ -84,6 +98,11 @@ it("background persists batches, survives UI closure, cancels safely, resumes pe
   await command("cancel");
   await vi.waitFor(() => expect(state.batches[0].cancelled).toBe(true));
   expect(state.batches[0].rows[0].score).toBe(12);
+  expect(state.batches[0].rows[1].radarCountry).toBe("HK");
+  expect(state.batches[0].rows[1].sections?.map((s) => s.sourceId)).toEqual([
+    "ipradar",
+  ]);
+  expect(state.batches[0].sourceIds).toEqual(["ipradar", "abuseipdb"]);
   expect(state.batches[0].rows[1].errors).toContain("已停止，未完成查詢");
   // Simulate a saved pending batch after worker suspension; an alarm picks it up.
   await vi.waitFor(() => expect(chrome.alarms.clear).toHaveBeenCalled());

@@ -3,6 +3,11 @@ import { countryLabel, resultOf } from "./result-model";
 export const PAGE_SIZE = 5;
 export const batchFinished = (batch?: Batch) =>
   !!batch?.rows.length && batch.rows.every((row) => row.status === "done");
+/** Include partial source results; exclude IPs with no response yet. */
+export const queriedRows = (batch?: Batch) =>
+  batch?.rows.filter(
+    (row) => !!row.sections?.length || row.status === "done",
+  ) ?? [];
 export type ScoreOperator =
   "any" | "gt" | "gte" | "lt" | "lte" | "eq" | "between" | "missing";
 export interface ResultFilters {

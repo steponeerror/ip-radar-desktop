@@ -1,3 +1,4 @@
+import { exportRecord, toCsv } from "../csv";
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ResultPanel, QueryExport } from "../ResultPanel";
@@ -5,6 +6,7 @@ import { HistoryView } from "../HistoryView";
 import { initialState, type Row, type Batch } from "../model";
 import {
   batchFinished,
+  queriedRows,
   deleteBatches,
   emptyFilters,
   filterResults,
@@ -103,14 +105,23 @@ it("preserves selections across page slices and filters without mutating the pre
   expect(filtered.filter((r) => second.has(r.ip))).toHaveLength(0);
   expect(rows.filter((r) => second.has(r.ip))).toEqual([rows[0], rows[10]]);
 });
-it("hides active batches and disables export even when some rows have finished", () => {
+it("offers current-results export during a lookup, hides it on completion, and keeps it out of history", () => {
   const running = batch("running", [
     row("1.1.1.1", 80),
     { ...row("8.8.8.8"), status: "pending" },
   ]);
   expect(batchFinished(running)).toBe(false);
   const html = renderToStaticMarkup(<QueryExport batch={running} />);
-  expect(html).toMatch(/<button[^>]*disabled[^>]*>/);
+  expect(html).toMatch(/<button[^>]* disabled=""[^>]*>/);
+  expect(html).toMatch(
+    /<button(?![^>]* disabled="")[^>]*>.*?導出已查詢.*?1.*?<\/button>/,
+  );
+  expect(renderToStaticMarkup(<QueryExport />)).not.toContain("導出已查詢");
+  expect(
+    renderToStaticMarkup(
+      <QueryExport batch={{ ...running, cancelled: true }} />,
+    ),
+  ).not.toContain("導出已查詢");
   const history = renderToStaticMarkup(
     <HistoryView
       batches={[running, batch("finished")]}
@@ -119,8 +130,12 @@ it("hides active batches and disables export even when some rows have finished",
   );
   expect(history).not.toContain('value="running"');
   expect(history).toContain("查詢批次");
+  expect(history).not.toContain("導出已查詢");
   running.rows[1].status = "done";
   expect(batchFinished(running)).toBe(true);
+  expect(renderToStaticMarkup(<QueryExport batch={running} />)).not.toContain(
+    "導出已查詢",
+  );
 });
 it("initially renders only five IP cards and no row selection controls", () => {
   const rows = Array.from({ length: 23 }, (_, i) => row(`10.0.0.${i + 1}`));
@@ -168,4 +183,74 @@ it("filters country disagreement separately from verdict and missing countries",
       "zh-Hant",
     ),
   ).toEqual([conflict]);
+});
+
+it("exports all 217 Radar results with the 58 available Abuse results without changing the running batch", () => {
+  const rows: Row[] = Array.from({ length: 217 }, (_, i) => ({
+    ip: `10.0.0.${i + 1}`,
+    queriedAt: "2026-10-24T00:00:00Z",
+    errors: [],
+    status: i < 58 ? "done" : "pending",
+    score: i < 58 ? i : undefined,
+    sections: [
+      {
+        sourceId: "ipradar",
+        status: "ok",
+        data: { ip: `10.0.0.${i + 1}`, country: { value: "HK" } },
+      },
+      ...(i < 58
+        ? [
+            {
+              sourceId: "abuseipdb",
+              status: "ok" as const,
+              data: { score: i, countryCode: "HK" },
+            },
+          ]
+        : []),
+    ],
+  }));
+  const running = batch("partial", [
+    ...rows,
+    { ip: "8.8.8.8", queriedAt: "", errors: [], status: "pending" },
+  ]);
+  const snapshot = structuredClone(running);
+  const exported = queriedRows(running);
+  expect(exported).toHaveLength(217);
+  const records = exported.map((r) => exportRecord(r));
+  expect(records.filter((r) => r.radarStatus === "ok")).toHaveLength(217);
+  expect(records.filter((r) => typeof r.score === "number")).toHaveLength(58);
+  expect(records[58].score).toBeUndefined();
+  expect(records[58].abuseStatus).toBeUndefined();
+  expect(toCsv(exported).split("\r\n")).toHaveLength(218);
+  expect(toCsv(exported)).not.toContain('"8.8.8.8"');
+  expect(running).toEqual(snapshot);
+  expect(renderToStaticMarkup(<QueryExport batch={running} />)).toContain(
+    "217",
+  );
+});
+
+it("keeps the stopped source summary outside the selector and beside the history delete button", () => {
+  const stopped: Batch = {
+    ...batch("stopped", [
+      {
+        ...row("1.1.1.1"),
+        sections: [
+          { sourceId: "ipradar", status: "ok", data: { ip: "1.1.1.1" } },
+        ],
+      },
+    ]),
+    cancelled: true,
+    sourceIds: ["ipradar", "abuseipdb"],
+  };
+  const html = renderToStaticMarkup(
+    <HistoryView batches={[stopped]} onDelete={async () => {}} />,
+  );
+  const summary = html.match(/<p[^>]*role="status"[^>]*>(.*?)<\/p>/)?.[1];
+  expect(summary).toContain("已停止");
+  expect(summary).toContain("Radar 成功 1/1");
+  expect(summary).toContain("AbuseIPDB 成功 0/1");
+  expect(html.indexOf(summary!)).toBeLessThan(
+    html.indexOf('aria-label="刪除此批次"'),
+  );
+  expect(html).not.toContain("導出已查詢");
 });

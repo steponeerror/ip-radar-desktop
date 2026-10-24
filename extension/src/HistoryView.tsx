@@ -1,3 +1,4 @@
+import { batchProgress } from "./progress";
 import {
   Tooltip,
   TooltipTrigger,
@@ -44,7 +45,7 @@ export function HistoryView({
     Math.max(0, Math.ceil(completed.length / PAGE_SIZE) - 1),
   );
   const label = (batch: Batch) =>
-    `${new Date(batch.createdAt).toLocaleString(locale)} · ${batch.rows.length} IP${batch.cancelled ? t(" · 已停止") : ""}`;
+    `${new Date(batch.createdAt).toLocaleString(locale)} · ${batch.rows.length} IP`;
   async function remove() {
     if (!confirm) return;
     setBusy(true);
@@ -95,7 +96,9 @@ export function HistoryView({
                       }
                     />
                     <FieldLabel htmlFor={`batch-delete-${batch.id}`}>
-                      {label(batch)}
+                      {label(batch)} ·{" "}
+                      {batch.cancelled ? t("已停止") + " · " : ""}
+                      {batchProgress(batch, t, true)}
                     </FieldLabel>
                   </Field>
                 ))}
@@ -160,25 +163,38 @@ export function HistoryView({
               </ChoiceSelect>
             </Field>
           </FieldGroup>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    className="self-end"
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={t("刪除此批次")}
-                    disabled={!current || busy}
-                    onClick={() => current && setConfirm([current.id])}
-                  />
-                }
-              >
-                <Trash2 />
-              </TooltipTrigger>
-              <TooltipContent>{t("刪除此批次")}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <div className="flex items-center justify-between gap-3">
+            <p
+              className="min-w-0 flex-1 text-xs text-muted-foreground"
+              role="status"
+            >
+              {current && (
+                <>
+                  {current.cancelled ? t("已停止") + " · " : ""}
+                  {batchProgress(current, t, true)}
+                </>
+              )}
+            </p>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      className="shrink-0"
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={t("刪除此批次")}
+                      disabled={!current || busy}
+                      onClick={() => current && setConfirm([current.id])}
+                    />
+                  }
+                >
+                  <Trash2 />
+                </TooltipTrigger>
+                <TooltipContent>{t("刪除此批次")}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </>
       ) : null}
       {confirm && (

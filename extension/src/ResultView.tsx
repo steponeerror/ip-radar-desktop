@@ -368,7 +368,7 @@ function ResultItem({
     <Card
       size="sm"
       className={
-        checked !== undefined || row.status === "done"
+        checked !== undefined || row.status === "done" || !!row.sections?.length
           ? "cursor-pointer"
           : undefined
       }
@@ -382,7 +382,8 @@ function ResultItem({
           return;
         if (window.getSelection()?.toString()) return;
         if (checked !== undefined) onSelect?.(!checked);
-        else if (row.status === "done") setExpanded((open) => !open);
+        else if (row.status === "done" || !!row.sections?.length)
+          setExpanded((open) => !open);
       }}
     >
       <CardHeader>
@@ -398,7 +399,7 @@ function ResultItem({
               )}
               {row.ip}
             </span>
-            {row.status === "done" && (
+            {(row.status === "done" || !!row.sections?.length) && (
               <div className="flex shrink-0 items-center gap-1">
                 <Badge
                   variant="outline"
@@ -453,7 +454,7 @@ function ResultItem({
           )}
         </div>
         {(row.errors.length > 0 || r.legacy) && <Messages row={row} />}
-        {row.status === "done" && (
+        {(row.status === "done" || !!row.sections?.length) && (
           <Collapsible
             open={expanded}
             onOpenChange={setExpanded}

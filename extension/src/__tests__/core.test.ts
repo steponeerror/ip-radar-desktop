@@ -173,14 +173,14 @@ describe("configurable query limit", () => {
     expect(validateQuery("1.1.1.1,1.1.1.1", 1)).toEqual(["1.1.1.1"]);
     expect(() => validateQuery("1.1.1.1,8.8.8.8", 1)).toThrow("超過單次");
     const ips = Array.from(
-      { length: 1000 },
+      { length: 1500 },
       (_, i) => `10.0.${Math.floor(i / 256)}.${i % 256}`,
     ).join("\n");
-    expect(validateQuery(ips, 1000)).toHaveLength(1000);
+    expect(validateQuery(ips, 1500)).toHaveLength(1500);
     expect(() => validateQuery(ips, 999)).toThrow("超過單次");
   });
   it("rejects invalid limits and retains the default for old stored settings", () => {
-    for (const limit of [0, -1, 1.5, 1001, NaN, Infinity])
+    for (const limit of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity])
       expect(() => validateQuery("1.1.1.1", limit)).toThrow("整數");
     expect(normalizeState().settings.maxQueryIps).toBe(100);
     expect(() => validateQuery("", 100)).toThrow("有效 IP");

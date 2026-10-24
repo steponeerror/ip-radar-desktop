@@ -17,6 +17,29 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+已停止|已停止|Stopped
+導出已查詢|导出已查询|Export current results
+查詢中可導出目前已取得的資料；未完成來源留空，查詢繼續進行。|查询中可导出目前已取得的数据；未完成来源留空，查询继续进行。|Export results received so far. Pending sources remain blank and the lookup continues.
+
+AbuseIPDB 額度與冷卻|AbuseIPDB 额度与冷却|AbuseIPDB quota & cooldown
+AbuseIPDB 額度已用完|AbuseIPDB 额度已用完|AbuseIPDB quota exhausted
+AbuseIPDB 需冷卻|AbuseIPDB 需冷却|AbuseIPDB cooldown required
+已停止 AbuseIPDB 後續查詢；Radar 不受影響，已取得的結果會保留。|已停止 AbuseIPDB 后续查询；Radar 不受影响，已取得的结果会保留。|Further AbuseIPDB requests are stopped. Radar continues and existing results are retained.
+可再次查詢時間|可再次查询时间|Next allowed lookup
+API 未提供有效等待時間，暫採 60 秒冷卻。|API 未提供有效等待时间，暂用 60 秒冷却。|The API did not provide a valid wait time; a 60-second cooldown is used.
+冷卻結束後可另開新批次，不會自動重查已停止的項目。|冷却结束后可另开新批次，不会自动重查已停止的项目。|Start a new batch after cooldown. Stopped items are not retried automatically.
+顯示此 API Key 最近一次回應的額度，不會為了更新狀態額外查詢。|显示此 API Key 最近一次响应的额度，不会为了更新状态额外查询。|Quota comes from this API key's latest response. No extra requests are sent to refresh it.
+未知|未知|Unknown
+冷卻已結束，可開始新查詢。|冷却已结束，可开始新查询。|Cooldown ended. You can start a new lookup.
+目前沒有已知的冷卻限制。|目前没有已知的冷却限制。|No known cooldown is active.
+剩餘查詢額度（上次回應）|剩余查询额度（上次响应）|Remaining checks (last response)
+每日查詢上限|每日查询上限|Daily check limit
+額度重置時間|额度重置时间|Quota reset time
+額度最後更新|额度最后更新|Quota last updated
+已超過上次重置時間，實際額度待下次回應確認。|已超过上次重置时间，实际额度待下次响应确认。|The previous reset time has passed. The next response will confirm the current quota.
+AbuseIPDB 額度已用完，已停止此來源，未查詢剩餘 IP|AbuseIPDB 额度已用完，已停止此来源，未查询剩余 IP|AbuseIPDB quota exhausted; this source stopped and remaining IPs were not queried
+AbuseIPDB 需冷卻，已停止此來源，未查詢剩餘 IP|AbuseIPDB 需冷却，已停止此来源，未查询剩余 IP|AbuseIPDB cooldown required; this source stopped and remaining IPs were not queried
+
 Enter 開始查詢 · Alt+Space 換行|Enter 开始查询 · Alt+Space 换行|Enter to search · Alt+Space for a new line
 紀錄管理與更新|记录管理与更新|History management & updates
 目前版本|当前版本|Current version
@@ -67,8 +90,14 @@ Enter 開始查詢 · Alt+Space 換行|Enter 开始查询 · Alt+Space 换行|En
 背景查詢中，重新開啟查詢頁可查看進度。|后台查询中，重新打开查询页可查看进度。|Lookup runs in the background. Reopen the Query tab to check progress.
 
 單次最大查詢數|单次最大查询数|Maximum IPs per lookup
-單次最大查詢數必須是 1–1,000 的整數。|单次最大查询数必须是 1–1,000 的整数。|The lookup limit must be a whole number between 1 and 1,000.
-預設 100；可設定 1–1,000，以去重後的 IP 數量計算，不會增加 API 配額。|默认 100；可设置 1–1,000，按去重后的 IP 数量计算，不会增加 API 配额。|Default 100; range 1–1,000. Counts unique IPs and does not increase your API quota.
+已查完|已查完|Complete
+已停止，未查完|已停止，未查完|Stopped, incomplete
+已結束，部分未成功|已结束，部分未成功|Finished with unsuccessful lookups
+查詢中|查询中|Querying
+成功|成功|Successful
+失敗／未查詢|失败／未查询|Failed / not queried
+單次最大查詢數必須是正整數。|单次最大查询数必须是正整数。|The lookup limit must be a positive whole number.
+預設 100；可自訂正整數，以去重後的 IP 數量計算，不會增加 API 配額。|默认 100；可自定义正整数，按去重后的 IP 数量计算，不会增加 API 配额。|Default 100; choose any positive whole number. Counts unique IPs and does not increase your API quota.
 IPv4 / IPv6 · 換行、逗號或空格分隔|IPv4 / IPv6 · 换行、逗号或空格分隔|IPv4 / IPv6 · Separate with lines, commas or spaces
 超過單次查詢上限，請分批查詢。|超过单次查询上限，请分批查询。|The lookup limit is exceeded. Split the IPs into smaller batches.
 請輸入有效 IP，並修正無效項目。|请输入有效 IP，并修正无效项。|Enter valid IPs and correct invalid entries.

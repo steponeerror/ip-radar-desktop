@@ -1,3 +1,4 @@
+import { abuseKeyId } from "./abuse-limits";
 import { deleteBatches } from "./result-controls";
 import {
   activeBatch,
@@ -8,7 +9,7 @@ import {
   type State,
   type Settings,
 } from "./model";
-import { lookup } from "./api";
+import { queryBatch, mergeSection } from "./api";
 const KEY = "radarState";
 let serial: Promise<unknown> = Promise.resolve();
 let running = false;
@@ -40,20 +41,43 @@ async function pump() {
         await chrome.alarms.clear("resume");
         break;
       }
-      const pending = batch.rows.find((r) => r.status === "pending")!;
       controller = new AbortController();
-      const timeout = setTimeout(() => controller?.abort(), 20_000);
-      let row;
-      try {
-        row = await lookup(pending.ip, state.settings, controller.signal);
-      } finally {
-        clearTimeout(timeout);
-      }
-      await mutate((current) => {
-        const target = current.batches.find((b) => b.id === batch.id);
-        if (target && !target.cancelled)
-          target.rows = target.rows.map((r) => (r.ip === row.ip ? row : r));
-      });
+      const sourceIds =
+        batch.sourceIds ??
+        [
+          state.settings.radarEnabled ? "ipradar" : "",
+          state.settings.abuseEnabled ? "abuseipdb" : "",
+        ].filter(Boolean);
+      const settings = {
+        ...state.settings,
+        radarEnabled: sourceIds.includes("ipradar"),
+        abuseEnabled: sourceIds.includes("abuseipdb"),
+      };
+      const keyId = await abuseKeyId(settings.abuseKey);
+      await queryBatch(
+        batch.rows,
+        settings,
+        controller.signal,
+        async (ip, section) => {
+          await mutate((current) => {
+            const target = current.batches.find((b) => b.id === batch.id);
+            if (!target || target.cancelled) return;
+            target.sourceIds = sourceIds;
+            target.rows = target.rows.map((r) =>
+              r.ip === ip ? mergeSection(r, section, sourceIds) : r,
+            );
+          });
+        },
+        {
+          state: state.abuseLimits?.[keyId],
+          save: async (limits) => {
+            await mutate((current) => {
+              current.abuseLimits ??= {};
+              current.abuseLimits[keyId] = limits;
+            });
+          },
+        },
+      );
     }
   } finally {
     running = false;
@@ -76,7 +100,7 @@ async function command(message: {
         if (patch[key] != null) patch[key] = patch[key].trim();
       }
       if ("maxQueryIps" in patch && !validQueryLimit(patch.maxQueryIps))
-        throw new Error("單次最大查詢數必須是 1–1,000 的整數。");
+        throw new Error("單次最大查詢數必須是正整數。");
       state.settings = { ...state.settings, ...patch };
       if (patch.openInTab != null)
         await chrome.action.setPopup({
@@ -94,6 +118,10 @@ async function command(message: {
       state.batches.unshift({
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
+        sourceIds: [
+          state.settings.radarEnabled ? "ipradar" : "",
+          state.settings.abuseEnabled ? "abuseipdb" : "",
+        ].filter(Boolean),
         rows: ips.map((ip) => ({
           ip,
           queriedAt: "",
@@ -113,7 +141,7 @@ async function command(message: {
         batch.rows.forEach((r) => {
           if (r.status === "pending") {
             r.status = "done";
-            r.errors = ["已停止，未完成查詢"];
+            r.errors.push("已停止，未完成查詢");
           }
         });
       }
