@@ -1,4 +1,11 @@
-import { normalizeState, type Batch, type Settings, type State } from "./model";
+import { summarizeBatch } from "./progress";
+import {
+  normalizeState,
+  type Batch,
+  type BatchSummary,
+  type Settings,
+  type State,
+} from "./model";
 
 export const STORAGE = {
   settings: "radar.settings",
@@ -8,6 +15,7 @@ export const STORAGE = {
 };
 export interface BatchIndex {
   ids: string[];
+  summaries?: Record<string, BatchSummary>;
   activeId?: string;
 }
 let initialized: Promise<void> | undefined;
@@ -74,41 +82,52 @@ export async function readActive() {
       : undefined;
   return { ...meta, batch };
 }
-/** Full history is assembled only for an explicit UI snapshot, never for each result. */
-export async function readState(): Promise<State> {
+/** Called under the background mutation lock, together with the batch write. */
+export async function saveBatch(batch: Batch) {
+  const index = await readIndex();
+  index.summaries = { ...index.summaries, [batch.id]: summarizeBatch(batch) };
+  await chrome.storage.local.set({
+    [STORAGE.batch(batch.id)]: batch,
+    [STORAGE.index]: index,
+  });
+}
+export function indexSummaries(index: BatchIndex): BatchSummary[] {
+  return index.ids.map((id) => {
+    const summary = index.summaries?.[id] ?? { id, finished: true };
+    // A stream can send final warnings after all rows become done.
+    return id === index.activeId ? { ...summary, finished: false } : summary;
+  });
+}
+/** Only the latest (query-page) batch is loaded by default. */
+export async function readState(selectedId?: string): Promise<State> {
   const meta = await readMeta();
-  const data = meta.index.ids.length
-    ? await chrome.storage.local.get(meta.index.ids.map(STORAGE.batch))
-    : {};
+  const id = selectedId ?? meta.index.activeId ?? meta.index.ids[0];
+  const batch =
+    id && meta.index.ids.includes(id) ? await readBatch(id) : undefined;
   return {
     settings: meta.settings,
     abuseLimits: meta.abuseLimits,
-    batches: meta.index.ids
-      .map((id) => data[STORAGE.batch(id)] as Batch | undefined)
-      .filter((b): b is Batch => !!b),
+    summaries: indexSummaries(meta.index),
+    batches: batch ? [batch] : [],
   };
 }
 
-/** Apply per-key storage events locally; no full-history reread on each update. */
+/** Retain only the query-page batch, never accumulate history from storage events. */
 export function applyStorageChanges(
   state: State,
   changes: Record<string, chrome.storage.StorageChange>,
 ): State {
-  let batches = state.batches;
-  const changedBatches = Object.entries(changes).filter(([key]) =>
-    key.startsWith("radar.batch."),
-  );
-  if (changedBatches.length || changes[STORAGE.index]) {
-    const byId = new Map(batches.map((b) => [b.id, b]));
-    for (const [key, change] of changedBatches) {
-      const id = key.slice("radar.batch.".length);
-      if (change.newValue) byId.set(id, change.newValue as Batch);
-      else byId.delete(id);
-    }
-    const ids = (changes[STORAGE.index]?.newValue as BatchIndex | undefined)
-      ?.ids ?? [...byId.keys()];
-    batches = ids.map((id) => byId.get(id)).filter((b): b is Batch => !!b);
-  }
+  const index = changes[STORAGE.index]?.newValue as BatchIndex | undefined;
+  const id = index ? (index.activeId ?? index.ids[0]) : state.batches[0]?.id;
+  let batch = state.batches.find((b) => b.id === id);
+  if (id && STORAGE.batch(id) in changes)
+    batch = changes[STORAGE.batch(id)].newValue as Batch | undefined;
+  const batches =
+    batch === state.batches[0] && state.batches.length <= 1
+      ? state.batches
+      : batch
+        ? [batch]
+        : [];
   return {
     settings:
       (changes[STORAGE.settings]?.newValue as Settings | undefined) ??
@@ -116,6 +135,7 @@ export function applyStorageChanges(
     abuseLimits:
       (changes[STORAGE.limits]?.newValue as State["abuseLimits"]) ??
       state.abuseLimits,
+    summaries: index ? indexSummaries(index) : state.summaries,
     batches,
   };
 }

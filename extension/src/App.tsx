@@ -1,3 +1,5 @@
+import { summarizeBatch } from "./progress";
+import { loadHistoryBatch } from "./client";
 import { AbuseStatus } from "./AbuseStatus";
 import { batchProgress } from "./progress";
 import {
@@ -13,7 +15,6 @@ import { downloadCsv } from "./csv";
 import { Download } from "lucide-react";
 import { UpdateCheck } from "./UpdateCheck";
 import { HistoryView } from "./HistoryView";
-import { batchFinished } from "./result-controls";
 import { useEffect, useState, useRef } from "react";
 import {
   Radar,
@@ -292,7 +293,49 @@ export default function App() {
   const parsed = parseIps(text);
   const active = activeBatch(state);
   const current = state.batches[0];
-  const completed = state.batches.filter(batchFinished);
+  const summaries = state.summaries ?? state.batches.map(summarizeBatch);
+  const completed = summaries.filter((b) => b.finished);
+  const latestId = summaries[0]?.id;
+  // Deleting the displayed batch can reveal a different latest batch.
+  useEffect(() => {
+    if (
+      !isExtension ||
+      !ready ||
+      !latestId ||
+      state.batches[0]?.id === latestId
+    )
+      return;
+    let cancelled = false;
+    void send("get")
+      .then((next) => {
+        if (!cancelled) setState(next);
+      })
+      .catch((e) => {
+        if (!cancelled) setNotice(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, latestId, state.batches[0]?.id]);
+  async function exportHistory() {
+    setBusy(true);
+    setNotice("");
+    try {
+      const rows = [];
+      for (const summary of completed) {
+        const batch = isExtension
+          ? await loadHistoryBatch(summary.id)
+          : state.batches.find((b) => b.id === summary.id);
+        if (!batch) throw new Error("找不到此批次");
+        for (const row of batch.rows) rows.push(row);
+      }
+      downloadCsv(rows, locale);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : t("操作失敗"));
+    } finally {
+      setBusy(false);
+    }
+  }
   const canStart =
     ready &&
     !busy &&
@@ -420,7 +463,9 @@ export default function App() {
         {managingBatches ? (
           <HistoryView
             management
-            batches={state.batches}
+            batches={isExtension ? undefined : state.batches}
+            summaries={summaries}
+            loadBatch={isExtension ? loadHistoryBatch : undefined}
             onDone={() => setManagingBatches(false)}
             onDelete={async (ids) => setState(await send("delete", { ids }))}
           />
@@ -572,12 +617,16 @@ export default function App() {
               />
             </TabsContent>
             <TabsContent value="history" className="flex flex-col gap-4 pt-3">
-              <HistoryView
-                batches={state.batches}
-                onDelete={async (ids) =>
-                  setState(await send("delete", { ids }))
-                }
-              />
+              {view === "history" && (
+                <HistoryView
+                  batches={isExtension ? undefined : state.batches}
+                  summaries={summaries}
+                  loadBatch={isExtension ? loadHistoryBatch : undefined}
+                  onDelete={async (ids) =>
+                    setState(await send("delete", { ids }))
+                  }
+                />
+              )}
             </TabsContent>
             <TabsContent value="settings" className="flex flex-col gap-4 pt-3">
               {ready && (
@@ -605,7 +654,7 @@ export default function App() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Button
                       size="sm"
-                      disabled={!completed.length}
+                      disabled={busy || !completed.length}
                       onClick={() => setManagingBatches(true)}
                     >
                       {t("管理批次")}
@@ -613,13 +662,8 @@ export default function App() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={!completed.length}
-                      onClick={() =>
-                        downloadCsv(
-                          completed.flatMap((batch) => batch.rows),
-                          locale,
-                        )
-                      }
+                      disabled={busy || !completed.length}
+                      onClick={() => void exportHistory()}
                     >
                       <Download data-icon="inline-start" />
                       {t("匯出全部紀錄")}

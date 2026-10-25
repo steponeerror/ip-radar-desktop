@@ -1,7 +1,9 @@
+import { summarizeBatch } from "./progress";
 import { BatchBuffer } from "./batch-buffer";
 import { abuseKeyId } from "./abuse-limits";
 import {
   STORAGE,
+  saveBatch,
   readMeta,
   readIndex,
   readBatch,
@@ -41,12 +43,7 @@ async function pump() {
         const controller = new AbortController();
         const buffer = new BatchBuffer(
           state.batch,
-          (snapshot) =>
-            mutate(() =>
-              chrome.storage.local.set({
-                [STORAGE.batch(snapshot.id)]: snapshot,
-              }),
-            ),
+          (snapshot) => mutate(() => saveBatch(snapshot)),
           (error) => controller.abort(error),
         );
         currentRun = { buffer, controller };
@@ -127,11 +124,31 @@ async function command(message: {
   id?: string;
   ids?: string[];
 }) {
-  if (message.type === "get" || message.type === "snapshot") {
+  if (
+    message.type === "get" ||
+    message.type === "snapshot" ||
+    message.type === "batch"
+  ) {
     const run = currentRun;
     if (run && (!message.id || message.id === run.buffer.batch.id))
       await run.buffer.flush();
-    return read();
+    if (message.type === "batch" && message.id) {
+      // Build missing summaries only when this batch is explicitly opened.
+      await mutate(async () => {
+        const index = await readIndex();
+        if (!index.ids.includes(message.id!) || index.summaries?.[message.id!])
+          return;
+        const batch = await readBatch(message.id!);
+        if (batch) {
+          index.summaries = {
+            ...index.summaries,
+            [batch.id]: summarizeBatch(batch),
+          };
+          await chrome.storage.local.set({ [STORAGE.index]: index });
+        }
+      });
+    }
+    return read(message.id);
   }
   if (message.type === "settings") {
     await mutate(async () => {
@@ -176,7 +193,18 @@ async function command(message: {
       const ids = [batch.id, ...state.index.ids].slice(0, 50);
       await chrome.storage.local.set({
         [STORAGE.batch(batch.id)]: batch,
-        [STORAGE.index]: { ids, activeId: batch.id },
+        [STORAGE.index]: {
+          ids,
+          activeId: batch.id,
+          summaries: {
+            ...Object.fromEntries(
+              Object.entries(state.index.summaries ?? {}).filter(([id]) =>
+                ids.includes(id),
+              ),
+            ),
+            [batch.id]: summarizeBatch(batch),
+          },
+        },
       });
       const removed = state.index.ids.filter((id) => !ids.includes(id));
       if (removed.length)
@@ -205,6 +233,10 @@ async function command(message: {
               }
             : r,
         );
+        state.index.summaries = {
+          ...state.index.summaries,
+          [batch.id]: summarizeBatch(batch),
+        };
         delete state.index.activeId;
         await chrome.storage.local.set({
           [STORAGE.batch(batch.id)]: batch,
@@ -231,9 +263,15 @@ async function command(message: {
     await mutate(async () => {
       const index = await readIndex();
       const ids = message.ids ?? (message.id ? [message.id] : []);
-      const batches = await Promise.all(ids.map(readBatch));
-      if (batches.some((b) => b && !batchFinished(b)))
-        throw new Error("請先停止查詢再刪除。");
+      for (const id of ids) {
+        if (!index.ids.includes(id)) continue;
+        const summary = index.summaries?.[id];
+        const finished = summary
+          ? summary.finished
+          : batchFinished(await readBatch(id));
+        if (!finished) throw new Error("請先停止查詢再刪除。");
+      }
+      for (const id of ids) if (index.summaries) delete index.summaries[id];
       index.ids = index.ids.filter((id) => !ids.includes(id));
       if (index.activeId && ids.includes(index.activeId)) delete index.activeId;
       await chrome.storage.local.set({ [STORAGE.index]: index });

@@ -1,4 +1,4 @@
-import { batchProgress } from "./progress";
+import { summarizeBatch, summaryProgress } from "./progress";
 import {
   Tooltip,
   TooltipTrigger,
@@ -6,7 +6,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -14,16 +14,20 @@ import { ChoiceSelect, ChoiceOption } from "@/components/ui/choice-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useI18n } from "./i18n";
-import type { Batch } from "./model";
-import { PAGE_SIZE, batchFinished, toggleSelection } from "./result-controls";
+import type { Batch, BatchSummary } from "./model";
+import { PAGE_SIZE, toggleSelection } from "./result-controls";
 import { PageControls, ResultPanel } from "./ResultPanel";
 export function HistoryView({
-  batches,
+  batches = [],
+  summaries,
+  loadBatch,
   onDelete,
   management = false,
   onDone,
 }: {
-  batches: Batch[];
+  batches?: Batch[];
+  summaries?: BatchSummary[];
+  loadBatch?: (id: string) => Promise<Batch | undefined>;
   management?: boolean;
   onDone?: () => void;
   onDelete: (ids: string[]) => Promise<void>;
@@ -36,7 +40,9 @@ export function HistoryView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(0);
-  const completed = batches.filter(batchFinished);
+  const completed = (summaries ?? batches.map(summarizeBatch)).filter(
+    (b) => b.finished,
+  );
   const current =
     completed.find((batch) => batch.id === batchId) || completed[0];
   const chosen = completed.filter((batch) => selected.has(batch.id));
@@ -44,8 +50,39 @@ export function HistoryView({
     page,
     Math.max(0, Math.ceil(completed.length / PAGE_SIZE) - 1),
   );
-  const label = (batch: Batch) =>
-    `${new Date(batch.createdAt).toLocaleString(locale)} · ${batch.rows.length} IP`;
+  const [detail, setDetail] = useState<Batch>();
+  const [loadError, setLoadError] = useState("");
+  const currentId = current?.id;
+  useEffect(() => {
+    let cancelled = false;
+    setDetail(undefined);
+    setLoadError("");
+    if (!management && currentId && loadBatch) {
+      void loadBatch(currentId)
+        .then((batch) => {
+          if (!cancelled) {
+            setDetail(batch);
+            if (!batch) setLoadError("找不到此批次");
+          }
+        })
+        .catch((e) => {
+          if (!cancelled)
+            setLoadError(e instanceof Error ? e.message : "操作失敗");
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [currentId, loadBatch, management]);
+  const displayed = loadBatch
+    ? detail?.id === currentId
+      ? detail
+      : undefined
+    : batches.find((b) => b.id === currentId);
+  const label = (batch: BatchSummary) =>
+    batch.createdAt != null
+      ? `${new Date(batch.createdAt).toLocaleString(locale)} · ${batch.total} IP`
+      : `${t("舊紀錄")} · ${batch.id.slice(0, 8)} · ${t("選取後載入摘要")}`;
   async function remove() {
     if (!confirm) return;
     setBusy(true);
@@ -98,7 +135,7 @@ export function HistoryView({
                     <FieldLabel htmlFor={`batch-delete-${batch.id}`}>
                       {label(batch)} ·{" "}
                       {batch.cancelled ? t("已停止") + " · " : ""}
-                      {batchProgress(batch, t, true)}
+                      {summaryProgress(batch, t, true)}
                     </FieldLabel>
                   </Field>
                 ))}
@@ -171,7 +208,7 @@ export function HistoryView({
               {current && (
                 <>
                   {current.cancelled ? t("已停止") + " · " : ""}
-                  {batchProgress(current, t, true)}
+                  {summaryProgress(current, t, true)}
                 </>
               )}
             </p>
@@ -226,8 +263,16 @@ export function HistoryView({
           </AlertDescription>
         </Alert>
       )}
-      {!management && (
-        <ResultPanel key={current?.id || "empty"} batch={current} history />
+      {!management && loadError && (
+        <Alert variant="destructive">
+          <AlertDescription>{errorText(loadError)}</AlertDescription>
+        </Alert>
+      )}
+      {!management && currentId && !displayed && !loadError && (
+        <p role="status">{t("載入中…")}</p>
+      )}
+      {!management && (!currentId || displayed) && (
+        <ResultPanel key={current?.id || "empty"} batch={displayed} history />
       )}
     </div>
   );

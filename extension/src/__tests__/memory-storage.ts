@@ -1,3 +1,4 @@
+import { summarizeBatch } from "../progress";
 import { vi } from "vitest";
 import { STORAGE, type BatchIndex } from "../storage";
 import { activeBatch, normalizeState, type State } from "../model";
@@ -11,6 +12,9 @@ export function memoryStorage(
     data[STORAGE.limits] = structuredClone(state.abuseLimits ?? {});
     data[STORAGE.index] = {
       ids: state.batches.map((b) => b.id),
+      summaries: Object.fromEntries(
+        state.batches.map((b) => [b.id, summarizeBatch(b)]),
+      ),
       activeId: activeBatch(state)?.id,
     };
     for (const b of state.batches)

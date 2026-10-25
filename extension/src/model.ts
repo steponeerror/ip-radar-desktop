@@ -46,7 +46,16 @@ export interface Batch {
   cancelled?: boolean;
   sourceIds?: string[];
 }
+export interface BatchSummary {
+  id: string;
+  createdAt?: string;
+  total?: number;
+  finished: boolean;
+  cancelled?: boolean;
+  sources?: { id: string; success: number; failed: number }[];
+}
 export interface State {
+  summaries?: BatchSummary[];
   settings: Settings;
   batches: Batch[];
   abuseLimits?: Record<string, import("./abuse-limits").AbuseLimits>;
@@ -126,6 +135,7 @@ export function normalizeState(state?: State): State {
         ? state.settings.maxQueryIps
         : defaults.maxQueryIps,
     },
+    summaries: state?.summaries,
     batches: state?.batches ?? [],
     abuseLimits: state?.abuseLimits ?? {},
   };

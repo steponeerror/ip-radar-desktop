@@ -69,3 +69,8 @@ export async function beginLookup(
   }
   return send("start", { text });
 }
+
+/** Details are owned by the selected history view, not the shared page state. */
+export async function loadHistoryBatch(id: string) {
+  return (await send("batch", { id })).batches.find((batch) => batch.id === id);
+}

@@ -17,6 +17,10 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+舊紀錄|旧记录|Older record
+選取後載入摘要|选取后载入摘要|Select to load summary
+載入中…|载入中…|Loading…
+找不到此批次|找不到此批次|Batch not found
 已停止|已停止|Stopped
 導出已查詢|导出已查询|Export current results
 查詢中可導出目前已取得的資料；未完成來源留空，查詢繼續進行。|查询中可导出目前已取得的数据；未完成来源留空，查询继续进行。|Export results received so far. Pending sources remain blank and the lookup continues.
