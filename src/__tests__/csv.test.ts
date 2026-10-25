@@ -73,7 +73,7 @@ describe("toCsv", () => {
 describe("exportRecord parity:桌面 ≡ 插件端(同一 fixtures)", () => {
   const AT = 1760000000000;
 
-  test.each([0, 1])("参考 IP %s 关键值一致(score/country/city/lat/lon/isp/asn/tor/reports/cdn/verdict/consensusValue)", (i) => {
+  test.each([0, 1])("参考 IP %s 关键值一致(score/country/city/isp/asn/tor/reports/cdn/verdict)", (i) => {
     const fx = fixtures[i];
     const a = fx.abuse.data;
     const sections: SourceSection[] = [
@@ -115,18 +115,17 @@ describe("exportRecord parity:桌面 ≡ 插件端(同一 fixtures)", () => {
       "score",
       "country",
       "city",
-      "lat",
-      "lon",
       "isp",
       "asn",
       "tor",
       "reports",
       "cdn",
       "verdict",
-      "consensusValue",
     ] as const) {
       expect(desktop[key]).toEqual(ext[key]);
     }
+    // Extension CSV intentionally omits detail fields absent from its UI.
+    for (const key of ["lat", "lon", "accuracy", "asnConfidence", "consensusValue"]) expect(ext[key]).toBeUndefined();
     expect(desktop.score).toBe(a.abuseConfidenceScore); // 分数确实来自 sections 派生
   });
 

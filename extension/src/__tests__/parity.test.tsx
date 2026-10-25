@@ -102,7 +102,7 @@ describe("desktop parity with captured real responses", () => {
       "總判定",
       "惡意",
       "良性",
-      "判定原生數值",
+      "主機名稱",
       "Radar 地區信心",
       "IP 範圍",
       "分類命中",
@@ -112,6 +112,7 @@ describe("desktop parity with captured real responses", () => {
     ])
       expect(csv).toContain(text);
     expect(csv).not.toContain("[object Object]");
+    expect(csv).not.toContain("判定原生數值");
   });
 });
 describe("boundary conditions", () => {

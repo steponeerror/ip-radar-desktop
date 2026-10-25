@@ -41,7 +41,10 @@ export interface AbuseSection {
   score: number;
   totalReports: number;
   numDistinctUsers: number;
-  isTor: boolean;
+  isTor?: boolean;
+  domain?: string;
+  hostnames?: string[];
+  isWhitelisted?: boolean | null;
   countryCode?: string;
   isp?: string;
   usageType?: string;

@@ -231,12 +231,33 @@ function AbuseBody({ data: a }: { data: AbuseSection }) {
           [t("地區"), countryLabel(a.countryCode, locale)],
           ["ISP", a.isp],
           [t("用途"), a.usageType],
-          [t("Tor 出口"), a.isTor ? t("是") : t("否")],
+
           [t("舉報次數"), a.totalReports],
           [t("舉報人數"), a.numDistinctUsers],
           [t("最後舉報"), a.lastReportedAt?.slice(0, 10)],
         ]}
       />
+      {(a.domain?.trim() || a.hostnames?.some((name) => name.trim())) && (
+        <Facts
+          items={[
+            ...(a.domain?.trim()
+              ? [[t("網域"), a.domain.trim()] as [string, ReactNode]]
+              : []),
+            ...(a.hostnames?.some((name) => name.trim())
+              ? [
+                  [
+                    t("主機名稱"),
+                    a.hostnames
+                      .map((name) => name.trim())
+                      .filter(Boolean)
+                      .join("、"),
+                  ] as [string, ReactNode],
+                ]
+              : []),
+          ]}
+        />
+      )}
+      {a.isTor === true && <Facts items={[[t("Tor 出口"), t("是")]]} />}
       {a.recentComments.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-muted-foreground">
@@ -317,6 +338,9 @@ export function FullResult({ row }: { row: Row }) {
                         data-tone={abuseScoreBand(r.abuse.score)}
                       >
                         {r.abuse.score}/100
+                        {r.abuse.isWhitelisted === true
+                          ? ` ${t("白名單")}`
+                          : ""}
                       </Badge>
                     ) : null
                   ) : (
@@ -406,6 +430,7 @@ function ResultItem({
                   data-tone={score == null ? undefined : abuseScoreBand(score)}
                 >
                   AbuseIPDB：{score == null ? "—" : `${score}/100`}
+                  {r.abuse?.isWhitelisted === true ? ` ${t("白名單")}` : ""}
                 </Badge>
                 {r.radar && (
                   <Verdict

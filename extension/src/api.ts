@@ -295,7 +295,17 @@ async function abuseSection(response: Response): Promise<SourceSection> {
     score: d.abuseConfidenceScore,
     totalReports: d.totalReports ?? 0,
     numDistinctUsers: d.numDistinctUsers ?? 0,
-    isTor: !!d.isTor,
+    isTor: typeof d.isTor === "boolean" ? d.isTor : undefined,
+    domain:
+      typeof d.domain === "string" ? d.domain.trim() || undefined : undefined,
+    hostnames: Array.isArray(d.hostnames)
+      ? d.hostnames.filter(
+          (name: unknown): name is string =>
+            typeof name === "string" && name.trim().length > 0,
+        )
+      : undefined,
+    isWhitelisted:
+      typeof d.isWhitelisted === "boolean" ? d.isWhitelisted : null,
     countryCode: d.countryCode,
     isp: d.isp,
     usageType: d.usageType,

@@ -1,26 +1,23 @@
-## Firefox 修正
+## 擴充功能
 
-- 修正 popup 寬度設定位置，將 600px 寬度設於 body，改善 Firefox 與 Chrome 的尺寸差異；分頁模式不受影響。
-- Release 流程新增 AMO unlisted 簽名，成功後提供 `IP.Radar.Firefox_v0.1.23.xpi`，供永久安裝。
-- 簽名與上傳分開執行，已簽名 XPI 保留為 CI 產物 30 天；若只有上傳失敗，可重跑失敗工作，不必重新簽名。
-
-## CI 改善
-
-- Chrome 與 Firefox 共用依賴安裝，減少重複工作。
-- 僅修改擴充功能時跳過桌面版三平台編譯；共用程式與 CI 改動仍執行完整驗證。
-- 新增 workflow 靜態檢查、自動取消過時測試，以及 Windows EXE 產物數量檢查。
+- 新增 AbuseIPDB domain 與 hostname，空白或不存在時隱藏；沿用原查詢回應，不額外發出 DNS 請求。
+- 白名單命中時在 AbuseIPDB 分數旁標記「白名單」，不改寫原始分數，不顯示沒有詳細資料的白名單卡片。
+- CSV 將 AbuseIPDB 分數、Radar 威脅信心、Radar 判定與總判定相鄰排列；移除 GPS、定位精度、ASN 信心及重複判定數值。
+- 保留 AbuseIPDB Tor 出口資訊：介面命中才顯示，CSV 未知狀態留空。
+- 圓形透明底工具列圖示再放大，Chrome 與 Firefox 共用。
+- 修正歷史批次切換時先清空畫面造成的閃動：載入期間暫留上一批並停用操作，新批次到齊後一次替換、釋放舊資料；仍按需讀取歷史。
 
 ## 下載與安裝
 
-- Chrome：下載 `IP.Radar.Chrome_v0.1.23.zip` 解壓，在 `chrome://extensions` 載入未封裝項目；既有使用者重新載入。
-- Firefox：簽名成功後下載 `IP.Radar.Firefox_v0.1.23.xpi`，在 `about:addons` 的齒輪選單選擇「從檔案安裝附加元件…」。目前沒有自動更新，升級需重新下載安裝。
+- Chrome：下載 `IP.Radar.Chrome_v0.1.24.zip` 解壓，在 `chrome://extensions` 載入未封裝項目；既有使用者重新載入。
+- Firefox：AMO 簽名成功後下載 `IP.Radar.Firefox_v0.1.24.xpi`，從 `about:addons` 的齒輪選單安裝。目前需手動下載新版更新。
 - macOS：下載 DMG，掛載後拖入 Applications。
 - Windows：下載 portable EXE，直接執行。
 
 ## 驗證與限制
 
-- popup 修正已通過 Chrome／Firefox 建置，尚待實機驗證尺寸。
-- workflow 靜態檢查與 4 項 CI 範圍測試通過。本次版本建置、AMO 簽名及平台產物以 Release CI 結果為準。
-- 原有 Radar／AbuseIPDB 查詢、冷卻、部分匯出、結果緩存及歷史按需載入功能保留。
+- 新欄位只適用於有保存該欄位的查詢結果，舊紀錄不補造缺失資料。
+- 桌面版查詢與匯出行為維持原樣；此版本的資料顯示調整以瀏覽器擴充功能為主。
+- 本機測試與建置結果見提交紀錄；平台打包及 AMO 簽名以 Release CI 結果為準。
 
-此版本保持 Draft，等待 CI 上傳 Chrome ZIP、AMO 已簽名 Firefox XPI、macOS DMG 與 Windows EXE，由維護者檢查後手動發佈。
+此版本保持 Draft，由 CI 上傳 Chrome ZIP、已簽名 Firefox XPI、macOS DMG 與 Windows EXE，待維護者確認後手動發佈。

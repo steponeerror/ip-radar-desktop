@@ -17,6 +17,10 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+網域|网域|Domain
+主機名稱|主机名称|Hostnames
+白名單|白名单|Whitelisted
+已命中|已命中|Matched
 舊紀錄|旧记录|Older record
 選取後載入摘要|选取后载入摘要|Select to load summary
 載入中…|载入中…|Loading…

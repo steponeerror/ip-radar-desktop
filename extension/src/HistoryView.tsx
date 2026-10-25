@@ -55,8 +55,8 @@ export function HistoryView({
   const currentId = current?.id;
   useEffect(() => {
     let cancelled = false;
-    setDetail(undefined);
     setLoadError("");
+    if (management || !currentId) setDetail(undefined);
     if (!management && currentId && loadBatch) {
       void loadBatch(currentId)
         .then((batch) => {
@@ -66,8 +66,10 @@ export function HistoryView({
           }
         })
         .catch((e) => {
-          if (!cancelled)
+          if (!cancelled) {
+            setDetail(undefined);
             setLoadError(e instanceof Error ? e.message : "操作失敗");
+          }
         });
     }
     return () => {
@@ -75,10 +77,11 @@ export function HistoryView({
     };
   }, [currentId, loadBatch, management]);
   const displayed = loadBatch
-    ? detail?.id === currentId
+    ? completed.some((batch) => batch.id === detail?.id)
       ? detail
       : undefined
     : batches.find((b) => b.id === currentId);
+  const loading = !!loadBatch && !!currentId && detail?.id !== currentId && !loadError;
   const label = (batch: BatchSummary) =>
     batch.createdAt != null
       ? `${new Date(batch.createdAt).toLocaleString(locale)} · ${batch.total} IP`
@@ -268,11 +271,19 @@ export function HistoryView({
           <AlertDescription>{errorText(loadError)}</AlertDescription>
         </Alert>
       )}
-      {!management && currentId && !displayed && !loadError && (
-        <p role="status">{t("載入中…")}</p>
-      )}
-      {!management && (!currentId || displayed) && (
-        <ResultPanel key={current?.id || "empty"} batch={displayed} history />
+      {!management && (
+        <div className="relative" aria-busy={loading}>
+          {loading && (
+            <div role="status" className="absolute right-3 top-3 rounded-md border bg-background px-3 py-2 text-xs shadow-sm">
+              {t("載入中…")}
+            </div>
+          )}
+          <div inert={loading || undefined} className={loading && !displayed ? "min-h-64" : undefined}>
+            {(!currentId || displayed) && (
+              <ResultPanel key={displayed?.id || "empty"} batch={displayed} history />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
