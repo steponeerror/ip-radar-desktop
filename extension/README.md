@@ -25,7 +25,7 @@ npm run build
 
 - Firefox 桌面版最低 140；Android manifest 最低 142（本專案尚未做 Android 實機驗證）。manifest 使用事件頁及模組，並宣告查詢 IP 與 API 憑證傳送給所選服務涉及的資料種類，由 Firefox 在安裝時顯示同意要求。沒有讀取瀏覽歷史或分析追蹤功能。
 - 臨時安裝：解壓 ZIP，在 Firefox 開啟 `about:debugging#/runtime/this-firefox`，按「Load Temporary Add-on」，選擇 `dist-firefox` 或解壓目錄內的 `manifest.json`。臨時附加元件重啟 Firefox 後即消失。
-- 永久安裝需 AMO 簽名（免費，unlisted 不會公開上架）：建立 `amo.env`（內含 `WEB_EXT_API_KEY`、`WEB_EXT_API_SECRET`），執行 `set -a; . ./amo.env; set +a` 後再 `npx web-ext sign --source-dir dist-firefox --channel unlisted`。上述載入環境檔指令適用 bash/zsh；簽好的 XPI 在 `web-ext-artifacts/`。Release 工作流程已自動完成簽名與上傳（走倉庫 secrets `AMO_API_KEY`／`AMO_API_SECRET`），此為本機手動對應路徑。簽名憑證不進 Git 或一般打包流程。
+- 永久安裝需 AMO 簽名（免費，unlisted 不會公開上架）：建立 `amo.env`（內含 `WEB_EXT_API_KEY`、`WEB_EXT_API_SECRET`），執行 `set -a; . ./amo.env; set +a` 後再 `npx web-ext sign --source-dir dist-firefox --channel unlisted`。上述載入環境檔指令適用 bash/zsh；簽好的 XPI 在 `web-ext-artifacts/`。Release 工作流程已自動完成簽名與上傳（走倉庫 secrets `AMO_API_KEY`／`AMO_API_SECRET`），此為本機手動對應路徑。簽名憑證不進 Git 或一般打包流程。簽名與 Release 上傳分成不同 CI 工作，已簽名 XPI 會保存為工作產物 30 天；若只有上傳失敗，使用「Re-run failed jobs」即可重用該產物，不要重新簽同一版本。
 - gecko id 為 `ip-radar-extension@steponeerror.github.io`，首次簽名後必須維持不變。
 - **unlisted 重新簽名不會讓已安裝者自動更新**。目前沒有設定 `update_url`，使用者需從 Release 下載新版已簽名 XPI 手動更新；若未來要自動更新，需另行維護 HTTPS 更新清單及已簽名 XPI。詳見 [Mozilla 自發佈說明](https://extensionworkshop.com/documentation/publish/self-distribution/)。
 - Firefox「檢查更新」只接受對應版本的 `IP.Radar.Firefox_v<版本>.zip` 或 `.xpi`（程式碼兩者皆認）；Release 現在上傳已簽名 XPI，解壓後亦可用於 `about:debugging` 臨時載入。Chrome 仍只比對 Chrome ZIP。
@@ -94,3 +94,10 @@ Vite 預覽可檢查介面、輸入與明暗模式；查詢、設定持久化及
 開發時可開啟 `/?mode=popup&sample=reference`，查看上述不含金鑰的實際回應快照；此資料入口不包含於生產建置。
 
 開啟查詢介面時會讀取剪貼簿，只有完整有效的 IPv4／IPv6 清單才自動填入空白輸入框；不會自動查詢或覆蓋已編輯內容。需 `clipboardRead` 權限。輸入框內 Enter 開始查詢，Alt+Space 在游標位置換行；輸入法組字時不觸發查詢。
+
+## CI 範圍與重跑
+
+- Chrome 與 Firefox 共用同一個測試工作及依賴安裝，分別保留建置產物。
+- 僅修改 `extension/` 時不啟動桌面版三平台編譯；共用程式、根目錄依賴與測試流程改動仍執行完整檢查。
+- 每次均檢查 workflow 語法與 CI 範圍判斷。相同 PR／分支的新提交會取消舊測試；發佈工作不會自動取消。
+- AMO 人工審查超過等待期限、簽名工作本身失敗或工作產物已過期時，需先到 AMO 確認該版本狀態；上傳重試機制不等於可以重複提交相同版本。

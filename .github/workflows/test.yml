@@ -8,8 +8,37 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      extension: ${{ steps.scope.outputs.extension }}
+      desktop: ${{ steps.scope.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate workflows
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+      - run: node --test scripts/ci-scope.test.mjs
+      - id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs "$BASE_SHA" HEAD >> "$GITHUB_OUTPUT"
+
   extension:
+    needs: changes
+    if: needs.changes.outputs.extension == 'true'
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,17 +59,6 @@ jobs:
           path: extension/dist/
           if-no-files-found: error
 
-  firefox-extension:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: extension/package-lock.json
-      - run: npm ci
-        working-directory: extension
       - run: npm run build:firefox
         working-directory: extension
       - run: npm run lint:firefox
@@ -52,6 +70,9 @@ jobs:
           if-no-files-found: error
 
   test:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:

@@ -61,6 +61,9 @@ jobs:
           gh release upload "$RELEASE_TAG" "$asset" --clobber
 
   build-firefox-extension:
+    permissions:
+      contents: read
+    timeout-minutes: 30
     needs: prepare-release
     runs-on: ubuntu-latest
     steps:
@@ -78,12 +81,11 @@ jobs:
         working-directory: extension
       - run: npm run lint:firefox
         working-directory: extension
-      - name: Sign with AMO (unlisted) and attach signed XPI
+      - name: Sign with AMO (unlisted)
         working-directory: extension
-        timeout-minutes: 10
+        timeout-minutes: 20
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
           WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
           WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
@@ -92,12 +94,39 @@ jobs:
             echo "Missing AMO_API_KEY / AMO_API_SECRET repo secrets (addons.mozilla.org JWT credentials)" >&2
             exit 1
           fi
-          npx web-ext sign --source-dir dist-firefox --channel unlisted
+          npx --no-install web-ext sign --source-dir dist-firefox --channel unlisted --timeout 300000 --approval-timeout 600000
           shopt -s nullglob
           xpis=(web-ext-artifacts/*.xpi)
           [ "${#xpis[@]}" -eq 1 ] || { echo "Expected exactly one signed xpi in web-ext-artifacts/, found ${#xpis[@]}" >&2; exit 1; }
           mv "${xpis[0]}" "IP.Radar.Firefox_${RELEASE_TAG}.xpi"
-          gh release upload "$RELEASE_TAG" "IP.Radar.Firefox_${RELEASE_TAG}.xpi" --clobber
+      - name: Preserve signed XPI for upload retries
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-signed-${{ github.ref_name }}
+          path: extension/IP.Radar.Firefox_${{ github.ref_name }}.xpi
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-firefox-extension:
+    needs: [prepare-release, build-firefox-extension]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: firefox-signed-${{ github.ref_name }}
+          path: signed
+      - name: Attach signed XPI to draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" == true ]] || {
+            echo "Refusing to modify a published release" >&2
+            exit 1
+          }
+          gh release upload "$RELEASE_TAG" "signed/IP.Radar.Firefox_${RELEASE_TAG}.xpi" --clobber
 
   # Platform builds upload independently to the prepared draft.
   build-macos:
@@ -159,7 +188,11 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          exe=$(ls src-tauri/target/release/*.exe | grep -v '\.dll' | head -1)
-          cp "$exe" "IP.Radar.Desktop_${{ github.ref_name }}_portable_x64.exe"
-          gh release upload "${{ github.ref_name }}" "IP.Radar.Desktop_${{ github.ref_name }}_portable_x64.exe" --clobber
+          shopt -s nullglob
+          exes=(src-tauri/target/release/*.exe)
+          [[ ${#exes[@]} -eq 1 ]] || { echo "Expected exactly one portable EXE" >&2; exit 1; }
+          asset="IP.Radar.Desktop_${RELEASE_TAG}_portable_x64.exe"
+          cp "${exes[0]}" "$asset"
+          gh release upload "$RELEASE_TAG" "$asset" --clobber
