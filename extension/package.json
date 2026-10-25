@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run"
+    "build:firefox": "node scripts/build-firefox.mjs",
+    "test": "vitest run",
+    "lint:firefox": "web-ext lint --source-dir dist-firefox"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -30,6 +32,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "typescript": "~6.0.3",
     "vite": "^8.0.16",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "web-ext": "10.8.0"
   }
 }

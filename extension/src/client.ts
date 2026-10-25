@@ -1,3 +1,4 @@
+import { extensionApi } from "./web-extension";
 import { applyStorageChanges } from "./storage";
 import {
   initialState,
@@ -9,7 +10,7 @@ import {
   type State,
 } from "./model";
 export const isExtension =
-  typeof chrome !== "undefined" && !!chrome.runtime?.id;
+  !!extensionApi()?.runtime?.id;
 export async function send(type: string, data = {}): Promise<State> {
   if (!isExtension) {
     if (type === "get") {
@@ -24,7 +25,7 @@ export async function send(type: string, data = {}): Promise<State> {
       "目前是介面預覽。請在 Chrome 載入 extension/dist 後使用查詢與儲存功能。",
     );
   }
-  const reply = await chrome.runtime.sendMessage({ type, ...data });
+  const reply = await extensionApi().runtime.sendMessage({ type, ...data });
   if (reply.error) throw new Error(reply.error);
   return normalizeState(reply.state);
 }
@@ -40,13 +41,13 @@ export function subscribe(callback: (update: (state: State) => State) => void) {
     )
       callback((state) => applyStorageChanges(state, changes));
   };
-  chrome.storage.onChanged.addListener(listener);
-  return () => chrome.storage.onChanged.removeListener(listener);
+  extensionApi().storage.onChanged.addListener(listener);
+  return () => extensionApi().storage.onChanged.removeListener(listener);
 }
 export function openTab() {
   if (isExtension)
-    return chrome.tabs.create({
-      url: chrome.runtime.getURL("index.html?mode=tab"),
+    return extensionApi().tabs.create({
+      url: extensionApi().runtime.getURL("index.html?mode=tab"),
     });
   window.open("?mode=tab", "_blank");
 }
@@ -61,7 +62,7 @@ export async function beginLookup(
   if (
     isExtension &&
     settings.radarEnabled &&
-    !(await chrome.permissions.request({
+    !(await extensionApi().permissions.request({
       origins: [serverOrigin(settings.serverUrl)],
     }))
   ) {

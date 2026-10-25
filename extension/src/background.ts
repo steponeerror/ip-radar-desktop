@@ -1,3 +1,4 @@
+import { extensionApi } from "./web-extension";
 import { summarizeBatch } from "./progress";
 import { BatchBuffer } from "./batch-buffer";
 import { abuseKeyId } from "./abuse-limits";
@@ -50,7 +51,7 @@ async function pump() {
         return { state, run: currentRun };
       });
       if (!prepared) {
-        await chrome.alarms.clear("resume");
+        await extensionApi().alarms.clear("resume");
         break;
       }
       const { state, run } = prepared;
@@ -88,10 +89,10 @@ async function pump() {
             save: async (limits) => {
               await mutate(async () => {
                 const saved =
-                  (await chrome.storage.local.get(STORAGE.limits))[
+                  (await extensionApi().storage.local.get(STORAGE.limits))[
                     STORAGE.limits
                   ] ?? {};
-                await chrome.storage.local.set({
+                await extensionApi().storage.local.set({
                   [STORAGE.limits]: { ...saved, [keyId]: limits },
                 });
               });
@@ -106,7 +107,7 @@ async function pump() {
         const index = await readIndex();
         if (index.activeId === batch.id && batchFinished(buffer.batch)) {
           delete index.activeId;
-          await chrome.storage.local.set({ [STORAGE.index]: index });
+          await extensionApi().storage.local.set({ [STORAGE.index]: index });
         }
         if (currentRun === run) currentRun = undefined;
       });
@@ -144,7 +145,7 @@ async function command(message: {
             ...index.summaries,
             [batch.id]: summarizeBatch(batch),
           };
-          await chrome.storage.local.set({ [STORAGE.index]: index });
+          await extensionApi().storage.local.set({ [STORAGE.index]: index });
         }
       });
     }
@@ -159,11 +160,11 @@ async function command(message: {
       }
       if ("maxQueryIps" in patch && !validQueryLimit(patch.maxQueryIps))
         throw new Error("單次最大查詢數必須是正整數。");
-      await chrome.storage.local.set({
+      await extensionApi().storage.local.set({
         [STORAGE.settings]: { ...state.settings, ...patch },
       });
       if (patch.openInTab != null)
-        await chrome.action.setPopup({
+        await extensionApi().action.setPopup({
           popup: patch.openInTab ? "" : "index.html?mode=popup",
         });
     });
@@ -191,7 +192,7 @@ async function command(message: {
         })),
       };
       const ids = [batch.id, ...state.index.ids].slice(0, 50);
-      await chrome.storage.local.set({
+      await extensionApi().storage.local.set({
         [STORAGE.batch(batch.id)]: batch,
         [STORAGE.index]: {
           ids,
@@ -208,9 +209,9 @@ async function command(message: {
       });
       const removed = state.index.ids.filter((id) => !ids.includes(id));
       if (removed.length)
-        await chrome.storage.local.remove(removed.map(STORAGE.batch));
+        await extensionApi().storage.local.remove(removed.map(STORAGE.batch));
     });
-    await chrome.alarms.create("resume", { periodInMinutes: 1 });
+    await extensionApi().alarms.create("resume", { periodInMinutes: 1 });
     void pump().catch(console.error);
   } else if (message.type === "cancel") {
     // Select/stop the in-memory run under the same lock used to start it.
@@ -238,7 +239,7 @@ async function command(message: {
           [batch.id]: summarizeBatch(batch),
         };
         delete state.index.activeId;
-        await chrome.storage.local.set({
+        await extensionApi().storage.local.set({
           [STORAGE.batch(batch.id)]: batch,
           [STORAGE.index]: state.index,
         });
@@ -250,7 +251,7 @@ async function command(message: {
         const index = await readIndex();
         if (index.activeId === run.buffer.batch.id) {
           delete index.activeId;
-          await chrome.storage.local.set({ [STORAGE.index]: index });
+          await extensionApi().storage.local.set({ [STORAGE.index]: index });
         }
       });
     }
@@ -274,16 +275,16 @@ async function command(message: {
       for (const id of ids) if (index.summaries) delete index.summaries[id];
       index.ids = index.ids.filter((id) => !ids.includes(id));
       if (index.activeId && ids.includes(index.activeId)) delete index.activeId;
-      await chrome.storage.local.set({ [STORAGE.index]: index });
-      if (ids.length) await chrome.storage.local.remove(ids.map(STORAGE.batch));
+      await extensionApi().storage.local.set({ [STORAGE.index]: index });
+      if (ids.length) await extensionApi().storage.local.remove(ids.map(STORAGE.batch));
     });
   } else throw new Error("未知操作");
   return read();
 }
-chrome.runtime.onMessage.addListener((message, sender, reply) => {
+extensionApi().runtime.onMessage.addListener((message, sender, reply) => {
   if (
-    sender.id !== chrome.runtime.id ||
-    !sender.url?.startsWith(chrome.runtime.getURL("index.html"))
+    sender.id !== extensionApi().runtime.id ||
+    !sender.url?.startsWith(extensionApi().runtime.getURL("index.html"))
   )
     return;
   command(message).then(
@@ -292,30 +293,32 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   );
   return true;
 });
-chrome.alarms.onAlarm.addListener((alarm) => {
+extensionApi().alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "resume") void pump().catch(console.error);
 });
-chrome.action.onClicked.addListener(() => {
-  void chrome.tabs.create({
-    url: chrome.runtime.getURL("index.html?mode=tab"),
+extensionApi().action.onClicked.addListener(() => {
+  void extensionApi().tabs.create({
+    url: extensionApi().runtime.getURL("index.html?mode=tab"),
   });
 });
 async function initialize() {
-  await chrome.storage.local.setAccessLevel({
-    accessLevel: "TRUSTED_CONTEXTS",
-  });
+  // Firefox has no setAccessLevel; this extension does not use content scripts.
+  if (extensionApi().storage.local.setAccessLevel)
+    await extensionApi().storage.local.setAccessLevel({
+      accessLevel: "TRUSTED_CONTEXTS",
+    });
   const state = await readActive();
-  await chrome.action.setPopup({
+  await extensionApi().action.setPopup({
     popup: state.settings.openInTab ? "" : "index.html?mode=popup",
   });
   if (state.batch) {
-    await chrome.alarms.create("resume", { periodInMinutes: 1 });
+    await extensionApi().alarms.create("resume", { periodInMinutes: 1 });
     void pump().catch(console.error);
   }
 }
-chrome.runtime.onInstalled.addListener(() => {
+extensionApi().runtime.onInstalled.addListener(() => {
   void initialize();
 });
-chrome.runtime.onStartup.addListener(() => {
+extensionApi().runtime.onStartup.addListener(() => {
   void initialize();
 });

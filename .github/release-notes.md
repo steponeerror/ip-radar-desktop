@@ -7,6 +7,11 @@
 - 開啟查詢介面時，只有剪貼簿整段都是有效 IPv4／IPv6 清單才自動填入空白輸入框，不覆蓋已編輯內容、不自動查詢。新增 clipboardRead 權限，Chrome 可能提示允許讀取複製貼上的資料。
 - 輸入框內 Enter 開始查詢、Alt+Space 換行；輸入法組字期間不觸發查詢。
 
+## Firefox Extension
+
+- 新增 Firefox 打包，桌面版最低 Firefox 140；採用獨立 manifest 與事件背景頁。
+- ZIP 未經簽名，只供臨時載入或提交 AMO。永久安裝需維護者另外提供已簽名 XPI；目前不提供自動更新。
+
 ## Desktop
 
 - 歷史紀錄保存完整來源資料，支援詳細檢視、條件篩選、勾選與 CSV 匯出。
@@ -15,7 +20,8 @@
 ## 下載與安裝
 
 - Chrome：下載 `IP.Radar.Chrome_v0.1.21.zip` 並解壓，在 `chrome://extensions` 使用開發人員模式載入未封裝項目。已有安裝請重新載入並確認新增權限。
+- Firefox：下載 `IP.Radar.Firefox_v0.1.21.zip` 解壓，在 `about:debugging` 臨時載入 `manifest.json`，重啟 Firefox 後需重新載入。若 Release 另有已簽名 XPI，可用於永久安裝。
 - macOS：下載 DMG，掛載後拖入 Applications。
 - Windows：下載 portable EXE，直接執行。
 
-此版本保持 Draft。CI 將上傳 Chrome ZIP、macOS DMG、Windows EXE，待建置完成後由維護者手動 Publish。
+此版本保持 Draft。CI 將上傳 Chrome ZIP、未簽名 Firefox ZIP、macOS DMG、Windows EXE，待建置完成後由維護者手動 Publish。

@@ -1,3 +1,4 @@
+import { hasExtensionAsset } from "./release-assets";
 import { useState } from "react";
 import { RefreshCw, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,11 +37,7 @@ export function UpdateCheck() {
         throw new Error("Invalid release");
       if (isNewerVersion(release.tag_name, manifest.version)) {
         if (
-          !Array.isArray(release.assets) ||
-          !release.assets.some(
-            (asset: { name?: string }) =>
-              asset.name?.startsWith("IP.Radar.Chrome_") && asset.name.endsWith(".zip"),
-          )
+          !hasExtensionAsset(release.assets, release.tag_name, import.meta.env.VITE_CHANNEL)
         ) {
           setMessage("新版本的擴充功能下載尚未就緒，請稍後再試。");
         } else setLatest(stripTag(release.tag_name));

@@ -1,3 +1,4 @@
+import { extensionApi } from "./web-extension";
 import { summarizeBatch } from "./progress";
 import {
   normalizeState,
@@ -21,17 +22,17 @@ export interface BatchIndex {
 let initialized: Promise<void> | undefined;
 export function initializeStorage(): Promise<void> {
   return (initialized ??= (async () => {
-    const saved = await chrome.storage.local.get([
+    const saved = await extensionApi().storage.local.get([
       STORAGE.settings,
       STORAGE.limits,
       STORAGE.index,
     ]);
     if (saved[STORAGE.index]) return;
     // Preserve connection settings and cooldowns only. Old history is deliberately not migrated.
-    const legacy = (await chrome.storage.local.get("radarState")).radarState as
+    const legacy = (await extensionApi().storage.local.get("radarState")).radarState as
       State | undefined;
     const normalized = normalizeState(legacy);
-    await chrome.storage.local.set({
+    await extensionApi().storage.local.set({
       [STORAGE.settings]: saved[STORAGE.settings] ?? normalized.settings,
       [STORAGE.limits]: saved[STORAGE.limits] ?? normalized.abuseLimits ?? {},
       [STORAGE.index]: { ids: [] },
@@ -43,7 +44,7 @@ export function initializeStorage(): Promise<void> {
 }
 export async function readMeta() {
   await initializeStorage();
-  const data = await chrome.storage.local.get([
+  const data = await extensionApi().storage.local.get([
     STORAGE.settings,
     STORAGE.limits,
     STORAGE.index,
@@ -61,13 +62,13 @@ export async function readMeta() {
 }
 export async function readIndex(): Promise<BatchIndex> {
   return (
-    ((await chrome.storage.local.get(STORAGE.index))[STORAGE.index] as
+    ((await extensionApi().storage.local.get(STORAGE.index))[STORAGE.index] as
       BatchIndex | undefined) ?? { ids: [] }
   );
 }
 export async function readBatch(id: string): Promise<Batch | undefined> {
   const key = STORAGE.batch(id);
-  return (await chrome.storage.local.get(key))[key] as Batch | undefined;
+  return (await extensionApi().storage.local.get(key))[key] as Batch | undefined;
 }
 export async function readActive() {
   const meta = await readMeta();
@@ -86,7 +87,7 @@ export async function readActive() {
 export async function saveBatch(batch: Batch) {
   const index = await readIndex();
   index.summaries = { ...index.summaries, [batch.id]: summarizeBatch(batch) };
-  await chrome.storage.local.set({
+  await extensionApi().storage.local.set({
     [STORAGE.batch(batch.id)]: batch,
     [STORAGE.index]: index,
   });

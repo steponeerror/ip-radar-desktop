@@ -19,6 +19,18 @@ npm run build
 
 也可解壓 `ip-radar-extension.zip`，載入解壓後包含 `manifest.json` 的資料夾。
 
+## Firefox
+
+在 `extension` 目錄執行 `npm run build:firefox`：產出獨立的 `dist-firefox`（不覆蓋 Chrome 的 `dist`），並打包 `IP.Radar.Firefox_v<版本>.zip`。接著執行 `npm run lint:firefox` 做 Mozilla 靜態檢查。CI 會建置與檢查 Firefox 包；版本標籤的 Release 工作流程會上傳未簽名 ZIP 到 Draft。
+
+- Firefox 桌面版最低 140；Android manifest 最低 142（本專案尚未做 Android 實機驗證）。manifest 使用事件頁及模組，並宣告查詢 IP 與 API 憑證傳送給所選服務涉及的資料種類，由 Firefox 在安裝時顯示同意要求。沒有讀取瀏覽歷史或分析追蹤功能。
+- 臨時安裝：解壓 ZIP，在 Firefox 開啟 `about:debugging#/runtime/this-firefox`，按「Load Temporary Add-on」，選擇 `dist-firefox` 或解壓目錄內的 `manifest.json`。臨時附加元件重啟 Firefox 後即消失。
+- 永久安裝需 AMO 簽名（免費，unlisted 不會公開上架）：建立 `amo.env`（內含 `WEB_EXT_API_KEY`、`WEB_EXT_API_SECRET`），執行 `set -a; . ./amo.env; set +a` 後再 `npx web-ext sign --source-dir dist-firefox --channel unlisted`。上述載入環境檔指令適用 bash/zsh；簽好的 XPI 在 `web-ext-artifacts/`，需另行上傳 Release 供使用者安裝。簽名憑證不進 Git 或一般打包流程。
+- gecko id 為 `ip-radar-extension@steponeerror.github.io`，首次簽名後必須維持不變。
+- **unlisted 重新簽名不會讓已安裝者自動更新**。目前沒有設定 `update_url`，使用者需從 Release 下載新版已簽名 XPI 手動更新；若未來要自動更新，需另行維護 HTTPS 更新清單及已簽名 XPI。詳見 [Mozilla 自發佈說明](https://extensionworkshop.com/documentation/publish/self-distribution/)。
+- Firefox「檢查更新」只接受對應版本的 `IP.Radar.Firefox_v<版本>.zip` 或 `.xpi`；ZIP 僅供臨時安裝／提交簽名，不能當作永久安裝包。Chrome 仍只比對 Chrome ZIP。
+- Mozilla lint 可能對 React 套件內部的 `innerHTML` 實作產生警告；應逐項檢查輸出。本專案目前沒有直接使用 `innerHTML` 或 `dangerouslySetInnerHTML` 顯示 API 回應。靜態檢查通過不代表 AMO 已核准或已簽名。
+
 ## 功能
 
 - 一批預設最多 100 個 IPv4 / IPv6，可在設定調整單次最大查詢數（任意正整數，移除 1,000 上限；仍受服務端與本機資源限制）；換行、逗號、分號或空格分隔，去重並提示無效項目。

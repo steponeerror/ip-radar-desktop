@@ -60,6 +60,31 @@ jobs:
           (cd extension/dist && zip -r "$asset" .)
           gh release upload "$RELEASE_TAG" "$asset" --clobber
 
+  build-firefox-extension:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+        working-directory: extension
+      - run: npm test
+        working-directory: extension
+      - run: npm run build:firefox
+        working-directory: extension
+      - run: npm run lint:firefox
+        working-directory: extension
+      - name: Attach unsigned Firefox extension for temporary loading or AMO submission
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        working-directory: extension
+        run: gh release upload "$RELEASE_TAG" "IP.Radar.Firefox_${RELEASE_TAG}.zip" --clobber
+
   # Platform builds upload independently to the prepared draft.
   build-macos:
     needs: prepare-release
