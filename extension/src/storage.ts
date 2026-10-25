@@ -29,8 +29,8 @@ export function initializeStorage(): Promise<void> {
     ]);
     if (saved[STORAGE.index]) return;
     // Preserve connection settings and cooldowns only. Old history is deliberately not migrated.
-    const legacy = (await extensionApi().storage.local.get("radarState")).radarState as
-      State | undefined;
+    const legacy = (await extensionApi().storage.local.get("radarState"))
+      .radarState as State | undefined;
     const normalized = normalizeState(legacy);
     await extensionApi().storage.local.set({
       [STORAGE.settings]: saved[STORAGE.settings] ?? normalized.settings,
@@ -68,9 +68,10 @@ export async function readIndex(): Promise<BatchIndex> {
 }
 export async function readBatch(id: string): Promise<Batch | undefined> {
   const key = STORAGE.batch(id);
-  return (await extensionApi().storage.local.get(key))[key] as Batch | undefined;
+  return (await extensionApi().storage.local.get(key))[key] as
+    Batch | undefined;
 }
-export async function readActive() {
+export async function readActive(recoverFinished = false) {
   const meta = await readMeta();
   const candidate = meta.index.activeId
     ? await readBatch(meta.index.activeId)
@@ -81,6 +82,11 @@ export async function readActive() {
     candidate.rows.some((r) => r.status === "pending")
       ? candidate
       : undefined;
+  if (recoverFinished && meta.index.activeId && !batch) {
+    // Recover a worker interrupted between its final data write and index cleanup.
+    delete meta.index.activeId;
+    await extensionApi().storage.local.set({ [STORAGE.index]: meta.index });
+  }
   return { ...meta, batch };
 }
 /** Called under the background mutation lock, together with the batch write. */

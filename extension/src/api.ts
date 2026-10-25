@@ -111,16 +111,18 @@ type Emit = (ip: string, section: SourceSection) => Promise<void>;
 export async function queryBatch(
   rows: Row[],
   settings: Settings,
-  signal: AbortSignal,
+  parentSignal: AbortSignal,
   emit: Emit,
   quota?: { state?: AbuseLimits; save: (state: AbuseLimits) => Promise<void> },
 ) {
+  const control = new AbortController();
+  const signal = AbortSignal.any([parentSignal, control.signal]);
   const missing = (id: string) =>
     rows.filter(
       (r) =>
         r.status === "pending" && !r.sections?.some((s) => s.sourceId === id),
     );
-  await Promise.all([
+  const tasks = [
     (async () => {
       if (!settings.radarEnabled) return;
       const ips = missing("ipradar").map((r) => r.ip);
@@ -250,8 +252,12 @@ export async function queryBatch(
         });
         if (signal.aborted) return;
         await save({ ...limits, nextRequestAt: Date.now() + 1000 });
+        if (signal.aborted) return;
+        // Pace from the actual dispatch, after potentially slow storage writes.
+        limits = { ...limits, nextRequestAt: Date.now() + 1000 };
         let response: Response;
         let storageFailure = false;
+        let deadlinePersisted = false;
         try {
           response = await request(
             `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(row.ip)}&maxAgeInDays=90`,
@@ -260,6 +266,7 @@ export async function queryBatch(
             async (response) => {
               try {
                 await save(updateAbuseLimits(limits, response));
+                deadlinePersisted = true;
               } catch (e) {
                 storageFailure = true;
                 throw e;
@@ -281,10 +288,20 @@ export async function queryBatch(
             [429, 401, 403].includes(e.status ?? 0)
           )
             blocked = section;
+        } finally {
+          // Also retain the actual dispatch deadline after network errors or cancellation.
+          if (!storageFailure && !deadlinePersisted) await save(limits);
         }
       }
     })(),
-  ]);
+  ];
+  try {
+    await Promise.all(tasks);
+  } catch (error) {
+    control.abort(error);
+    await Promise.allSettled(tasks);
+    throw error;
+  }
 }
 
 async function abuseSection(response: Response): Promise<SourceSection> {

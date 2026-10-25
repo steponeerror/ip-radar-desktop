@@ -2,9 +2,12 @@
 
 - 網域與主機名稱移到用途下方，空資料仍隱藏。
 - 批次選單新增「已停止」標記，不列出各來源成功數；詳細進度仍在選單外顯示。
-- 沿用 `v0.1.24` tag 重建。Firefox 因舊包已完成 AMO 簽名，包內版本使用 `0.1.24.1`；下載檔名及其他平台版本維持 0.1.24。
+- 沿用 `v0.1.24` tag 重建。Firefox 因舊包已完成 AMO 簽名，包內版本使用 `0.1.24.2`；下載檔名及其他平台版本維持 0.1.24。
 
 ## 擴充功能
+
+- 修復儲存失敗時 Radar 仍在執行、背景重啟後已完成批次未出現在紀錄，以及慢速儲存導致 AbuseIPDB 請求間隔不足一秒。
+- Firefox 加入自動更新網址；CI 將帶有實際簽名版本與 SHA-512 的 `firefox-updates.json` 隨 XPI 上傳。正式發佈前請確認兩個資產均已齊備，Draft 不會推送自動更新。
 
 - 新增 AbuseIPDB domain 與 hostname，空白或不存在時隱藏；沿用原查詢回應，不額外發出 DNS 請求。
 - 白名單命中時在 AbuseIPDB 分數旁標記「白名單」，不改寫原始分數，不顯示沒有詳細資料的白名單卡片。
@@ -16,7 +19,7 @@
 ## 下載與安裝
 
 - Chrome：下載 `IP.Radar.Chrome_v0.1.24.zip` 解壓，在 `chrome://extensions` 載入未封裝項目；既有使用者重新載入。
-- Firefox：AMO 簽名成功後下載 `IP.Radar.Firefox_v0.1.24.xpi`，從 `about:addons` 的齒輪選單安裝。目前需手動下載新版更新。
+- Firefox：AMO 簽名成功後下載 `IP.Radar.Firefox_v0.1.24.xpi`，從 `about:addons` 的齒輪選單安裝。舊版需手動安裝一次此新版，之後 Firefox 可透過 GitHub 最新正式 Release 自動更新（依瀏覽器更新設定與排程）。
 - macOS：下載 DMG，掛載後拖入 Applications。
 - Windows：下載 portable EXE，直接執行。
 

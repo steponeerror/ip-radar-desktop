@@ -27,7 +27,7 @@ npm run build
 - 臨時安裝：解壓 ZIP，在 Firefox 開啟 `about:debugging#/runtime/this-firefox`，按「Load Temporary Add-on」，選擇 `dist-firefox` 或解壓目錄內的 `manifest.json`。臨時附加元件重啟 Firefox 後即消失。
 - 永久安裝需 AMO 簽名（免費，unlisted 不會公開上架）：建立 `amo.env`（內含 `WEB_EXT_API_KEY`、`WEB_EXT_API_SECRET`），執行 `set -a; . ./amo.env; set +a` 後再 `npx web-ext sign --source-dir dist-firefox --channel unlisted`。上述載入環境檔指令適用 bash/zsh；簽好的 XPI 在 `web-ext-artifacts/`。Release 工作流程已自動完成簽名與上傳（走倉庫 secrets `AMO_API_KEY`／`AMO_API_SECRET`），此為本機手動對應路徑。簽名憑證不進 Git 或一般打包流程。簽名與 Release 上傳分成不同 CI 工作，已簽名 XPI 會保存為工作產物 30 天；若只有上傳失敗，使用「Re-run failed jobs」即可重用該產物，不要重新簽同一版本。
 - gecko id 為 `ip-radar-extension@steponeerror.github.io`，首次簽名後必須維持不變。
-- **unlisted 重新簽名不會讓已安裝者自動更新**。目前沒有設定 `update_url`，使用者需從 Release 下載新版已簽名 XPI 手動更新；若未來要自動更新，需另行維護 HTTPS 更新清單及已簽名 XPI。詳見 [Mozilla 自發佈說明](https://extensionworkshop.com/documentation/publish/self-distribution/)。
+- **unlisted 簽名搭配 `update_url` 支援 Firefox 自動更新**。CI 會將更新清單與已簽名 XPI 一起放入 Draft，正式發佈後才供已安裝者更新；舊版需手動安裝一次含此功能的版本。詳見下方流程及 [Mozilla 自發佈說明](https://extensionworkshop.com/documentation/publish/self-distribution/)。
 - Firefox「檢查更新」只接受對應版本的 `IP.Radar.Firefox_v<版本>.zip` 或 `.xpi`（程式碼兩者皆認）；Release 現在上傳已簽名 XPI，解壓後亦可用於 `about:debugging` 臨時載入。Chrome 仍只比對 Chrome ZIP。
 - Mozilla lint 可能對 React 套件內部的 `innerHTML` 實作產生警告；應逐項檢查輸出。本專案目前沒有直接使用 `innerHTML` 或 `dangerouslySetInnerHTML` 顯示 API 回應。靜態檢查通過不代表 AMO 已核准或已簽名。
 
@@ -109,4 +109,20 @@ Vite 預覽可檢查介面、輸入與明暗模式；查詢、設定持久化及
 - Tor 出口沿用 AbuseIPDB 的 `isTor`，介面只在 true 時顯示；CSV 對已知狀態保存 true/false，未知留空，不將未知誤記為否。
 - CSV 移除緯度、經度、定位精度、Radar ASN 信心及重複的判定原生數值；保留卡片仍顯示的 ASN、來源信心、舉報與處理狀態，新增 domain、hostname 及命中時的白名單欄。AbuseIPDB 分數、Radar 威脅信心與 Radar 判定相鄰，接著是總判定。
 
-Firefox 的 v0.1.24 重建使用包內版本 0.1.24.1，避免重複簽署已存在的 AMO 版本；tag 與下載名稱仍為 v0.1.24，下一版恢復一般版本號。
+Firefox 的 v0.1.24 下一次重建使用包內版本 0.1.24.2，避免重複簽署已存在的 AMO 版本；tag 與下載名稱仍為 v0.1.24，下一版恢復一般版本號。
+
+
+### Firefox 自動更新
+
+含 `update_url` 的新版簽名 XPI 安裝後，Firefox 會使用固定網址
+`https://github.com/steponeerror/ip-radar-desktop/releases/latest/download/firefox-updates.json`
+檢查更新（依 Firefox 自動更新設定及排程，不是 push 後立即更新）。
+舊版沒有此網址，需先手動安裝一次新版。Chrome 更新方式不變。
+
+發佈流程：提升版本並推送 `v*` tag → 等待簽名與打包完成 → 確認 Draft 同時具有
+Firefox XPI 和 `firefox-updates.json` → 手動 Publish Release，並設為最新正式版本。
+Draft 與 prerelease 不會透過 latest 更新網址推送；不要在資產齊全前發佈。
+更新資訊直接讀取簽名 XPI 的實際版本，附 SHA-512 雜湊及最低 Firefox 版本。
+不要刪除仍在使用的正式版本 XPI 或更改固定更新網址。
+
+本次程式預備 Firefox 包內版本 `0.1.24.2`（0.1.24.1 已簽名）；只提交程式不會移動既有 tag 或重新發佈。

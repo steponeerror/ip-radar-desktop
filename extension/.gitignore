@@ -4,3 +4,5 @@ dist/
 web-ext-artifacts/
 amo.env
 dist-firefox/
+firefox-updates.json
+signed-manifest.json

@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "build:firefox": "node scripts/build-firefox.mjs",
     "test": "vitest run",
-    "lint:firefox": "web-ext lint --source-dir dist-firefox"
+    "lint:firefox": "web-ext lint --source-dir dist-firefox --self-hosted"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

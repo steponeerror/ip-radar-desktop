@@ -66,7 +66,12 @@ export const initialState = (): State => ({
 });
 export const activeBatch = (state: State) =>
   state.batches.find(
-    (b) => !b.cancelled && b.rows.some((r) => r.status === "pending"),
+    (b) =>
+      !b.cancelled &&
+      (b.rows.some((r) => r.status === "pending") ||
+        state.summaries?.some(
+          (summary) => summary.id === b.id && !summary.finished,
+        )),
   );
 export function parseIps(text: string) {
   const valid = new Set<string>();

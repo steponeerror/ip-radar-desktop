@@ -99,11 +99,20 @@ jobs:
           xpis=(web-ext-artifacts/*.xpi)
           [ "${#xpis[@]}" -eq 1 ] || { echo "Expected exactly one signed xpi in web-ext-artifacts/, found ${#xpis[@]}" >&2; exit 1; }
           mv "${xpis[0]}" "IP.Radar.Firefox_${RELEASE_TAG}.xpi"
+      - name: Generate Firefox update manifest from signed XPI
+        working-directory: extension
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 -c 'import zipfile,sys; print(zipfile.ZipFile(sys.argv[1]).read("manifest.json").decode())' "IP.Radar.Firefox_${RELEASE_TAG}.xpi" > signed-manifest.json
+          node scripts/firefox-updates.mjs signed-manifest.json "IP.Radar.Firefox_${RELEASE_TAG}.xpi" "$RELEASE_TAG" firefox-updates.json
       - name: Preserve signed XPI for upload retries
         uses: actions/upload-artifact@v4
         with:
           name: firefox-signed-${{ github.ref_name }}
-          path: extension/IP.Radar.Firefox_${{ github.ref_name }}.xpi
+          path: |
+            extension/IP.Radar.Firefox_${{ github.ref_name }}.xpi
+            extension/firefox-updates.json
           if-no-files-found: error
           retention-days: 30
 
@@ -126,7 +135,7 @@ jobs:
             echo "Refusing to modify a published release" >&2
             exit 1
           }
-          gh release upload "$RELEASE_TAG" "signed/IP.Radar.Firefox_${RELEASE_TAG}.xpi" --clobber
+          gh release upload "$RELEASE_TAG" "signed/IP.Radar.Firefox_${RELEASE_TAG}.xpi" signed/firefox-updates.json --clobber
 
   # Platform builds upload independently to the prepared draft.
   build-macos:

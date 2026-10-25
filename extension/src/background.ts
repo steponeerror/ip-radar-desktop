@@ -39,7 +39,7 @@ async function pump() {
     }
     while (true) {
       const prepared = await mutate(async () => {
-        const state = await readActive();
+        const state = await readActive(true);
         if (!state.batch) return;
         const controller = new AbortController();
         const buffer = new BatchBuffer(
@@ -170,9 +170,9 @@ async function command(message: {
     });
   } else if (message.type === "start") {
     await mutate(async () => {
-      const state = await readActive();
-      if (state.batch || currentRun)
-        throw new Error("已有批次正在查詢，請等待完成或停止。");
+      if (currentRun) throw new Error("已有批次正在查詢，請等待完成或停止。");
+      const state = await readActive(true);
+      if (state.batch) throw new Error("已有批次正在查詢，請等待完成或停止。");
       validateSettings(state.settings);
       if (!state.settings.radarEnabled && !state.settings.abuseKey)
         throw new Error("請先設定 AbuseIPDB API Key。");
@@ -276,7 +276,8 @@ async function command(message: {
       index.ids = index.ids.filter((id) => !ids.includes(id));
       if (index.activeId && ids.includes(index.activeId)) delete index.activeId;
       await extensionApi().storage.local.set({ [STORAGE.index]: index });
-      if (ids.length) await extensionApi().storage.local.remove(ids.map(STORAGE.batch));
+      if (ids.length)
+        await extensionApi().storage.local.remove(ids.map(STORAGE.batch));
     });
   } else throw new Error("未知操作");
   return read();
@@ -307,7 +308,7 @@ async function initialize() {
     await extensionApi().storage.local.setAccessLevel({
       accessLevel: "TRUSTED_CONTEXTS",
     });
-  const state = await readActive();
+  const state = await mutate(() => readActive(!currentRun));
   await extensionApi().action.setPopup({
     popup: state.settings.openInTab ? "" : "index.html?mode=popup",
   });
