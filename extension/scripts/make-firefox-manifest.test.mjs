@@ -16,7 +16,13 @@ test("firefox manifest derives from the chrome manifest", () => {
     },
   });
   // 除 background/gecko 外逐字段继承 Chrome manifest:权限/图标/popup 不双维护
-  const { background, browser_specific_settings, ...rest } = fx;
-  const { background: chromeBackground, ...chromeRest } = chrome;
+  const { background, browser_specific_settings, version, ...rest } = fx;
+  const { background: chromeBackground, version: chromeVersion, ...chromeRest } = chrome;
+  expect(version).toBe(chromeVersion === "0.1.24" ? "0.1.24.1" : chromeVersion);
   expect(rest).toEqual(chromeRest);
+});
+
+test("Firefox signing revision applies only to the rebuilt release", () => {
+  expect(firefoxManifest({version:"0.1.24"}).version).toBe("0.1.24.1");
+  expect(firefoxManifest({version:"0.1.25"}).version).toBe("0.1.25");
 });

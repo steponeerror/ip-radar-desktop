@@ -231,32 +231,26 @@ function AbuseBody({ data: a }: { data: AbuseSection }) {
           [t("地區"), countryLabel(a.countryCode, locale)],
           ["ISP", a.isp],
           [t("用途"), a.usageType],
+          ...(a.domain?.trim()
+            ? [[t("網域"), a.domain.trim()] as [string, ReactNode]]
+            : []),
+          ...(a.hostnames?.some((name) => name.trim())
+            ? [
+                [
+                  t("主機名稱"),
+                  a.hostnames
+                    .map((name) => name.trim())
+                    .filter(Boolean)
+                    .join("、"),
+                ] as [string, ReactNode],
+              ]
+            : []),
 
           [t("舉報次數"), a.totalReports],
           [t("舉報人數"), a.numDistinctUsers],
           [t("最後舉報"), a.lastReportedAt?.slice(0, 10)],
         ]}
       />
-      {(a.domain?.trim() || a.hostnames?.some((name) => name.trim())) && (
-        <Facts
-          items={[
-            ...(a.domain?.trim()
-              ? [[t("網域"), a.domain.trim()] as [string, ReactNode]]
-              : []),
-            ...(a.hostnames?.some((name) => name.trim())
-              ? [
-                  [
-                    t("主機名稱"),
-                    a.hostnames
-                      .map((name) => name.trim())
-                      .filter(Boolean)
-                      .join("、"),
-                  ] as [string, ReactNode],
-                ]
-              : []),
-          ]}
-        />
-      )}
       {a.isTor === true && <Facts items={[[t("Tor 出口"), t("是")]]} />}
       {a.recentComments.length > 0 && (
         <div className="flex flex-col gap-2">

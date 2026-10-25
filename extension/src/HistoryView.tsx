@@ -81,11 +81,15 @@ export function HistoryView({
       ? detail
       : undefined
     : batches.find((b) => b.id === currentId);
-  const loading = !!loadBatch && !!currentId && detail?.id !== currentId && !loadError;
-  const label = (batch: BatchSummary) =>
-    batch.createdAt != null
-      ? `${new Date(batch.createdAt).toLocaleString(locale)} · ${batch.total} IP`
-      : `${t("舊紀錄")} · ${batch.id.slice(0, 8)} · ${t("選取後載入摘要")}`;
+  const loading =
+    !!loadBatch && !!currentId && detail?.id !== currentId && !loadError;
+  const label = (batch: BatchSummary) => {
+    const description =
+      batch.createdAt != null
+        ? `${new Date(batch.createdAt).toLocaleString(locale)} · ${batch.total} IP`
+        : `${t("舊紀錄")} · ${batch.id.slice(0, 8)} · ${t("選取後載入摘要")}`;
+    return `${description}${batch.cancelled ? ` · ${t("已停止")}` : ""}`;
+  };
   async function remove() {
     if (!confirm) return;
     setBusy(true);
@@ -136,9 +140,7 @@ export function HistoryView({
                       }
                     />
                     <FieldLabel htmlFor={`batch-delete-${batch.id}`}>
-                      {label(batch)} ·{" "}
-                      {batch.cancelled ? t("已停止") + " · " : ""}
-                      {summaryProgress(batch, t, true)}
+                      {label(batch)} · {summaryProgress(batch, t, true)}
                     </FieldLabel>
                   </Field>
                 ))}
@@ -274,13 +276,23 @@ export function HistoryView({
       {!management && (
         <div className="relative" aria-busy={loading}>
           {loading && (
-            <div role="status" className="absolute right-3 top-3 rounded-md border bg-background px-3 py-2 text-xs shadow-sm">
+            <div
+              role="status"
+              className="absolute right-3 top-3 rounded-md border bg-background px-3 py-2 text-xs shadow-sm"
+            >
               {t("載入中…")}
             </div>
           )}
-          <div inert={loading || undefined} className={loading && !displayed ? "min-h-64" : undefined}>
+          <div
+            inert={loading || undefined}
+            className={loading && !displayed ? "min-h-64" : undefined}
+          >
             {(!currentId || displayed) && (
-              <ResultPanel key={displayed?.id || "empty"} batch={displayed} history />
+              <ResultPanel
+                key={displayed?.id || "empty"}
+                batch={displayed}
+                history
+              />
             )}
           </div>
         </div>
