@@ -201,10 +201,9 @@ body {
 body {
   margin: 0;
 }
-html[data-mode="popup"] {
-  width: 600px;
-}
+/* Firefox measures popup width from body, rather than the root element. */
 html[data-mode="popup"] body {
+  width: 600px;
   min-height: 480px;
   max-height: 600px;
   overflow-y: auto;
