@@ -12,7 +12,7 @@ import {
 } from "./i18n";
 import { cleanIpInput, clipboardIpList, queryInputKey } from "./query-input";
 import { ResultPanel, QueryExport } from "./ResultPanel";
-import { downloadCsv } from "./csv";
+import { csvFromBatches, downloadCsvBlob } from "./csv";
 import { Download } from "lucide-react";
 import { UpdateCheck } from "./UpdateCheck";
 import { HistoryView } from "./HistoryView";
@@ -323,15 +323,18 @@ export default function App() {
     setBusy(true);
     setNotice("");
     try {
-      const rows = [];
-      for (const summary of completed) {
-        const batch = isExtension
-          ? await loadHistoryBatch(summary.id)
-          : state.batches.find((b) => b.id === summary.id);
-        if (!batch) throw new Error("找不到此批次");
-        for (const row of batch.rows) rows.push(row);
-      }
-      downloadCsv(rows, locale);
+      const blob = await csvFromBatches(
+        completed.map((summary) => summary.id),
+        async (id) => {
+          const batch = isExtension
+            ? await loadHistoryBatch(id)
+            : state.batches.find((batch) => batch.id === id);
+          if (!batch) throw new Error("找不到此批次");
+          return batch.rows;
+        },
+        locale,
+      );
+      downloadCsvBlob(blob);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : t("操作失敗"));
     } finally {

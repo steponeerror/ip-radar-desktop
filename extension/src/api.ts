@@ -11,6 +11,9 @@ import {
   type SourceSection,
 } from "../../shared/intelligence";
 
+// Per NDJSON record, not a cap on the whole batch.
+export const MAX_RADAR_LINE_BYTES = 1024 * 1024;
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -171,15 +174,33 @@ export async function queryBatch(
           if (e.type === "done") done = true;
           if (e.type === "error") throw new Error("Server 串流回報錯誤");
         };
+        let lineBytes = 0;
         try {
           while (true) {
             const chunk = await reader.read();
             touch();
-            buffer += decoder.decode(chunk.value, { stream: !chunk.done });
-            const lines = buffer.split("\n");
-            buffer = lines.pop()!;
-            for (const line of lines) await event(line);
+            const bytes = chunk.value ?? new Uint8Array();
+            let offset = 0;
+            while (offset < bytes.length) {
+              const newline = bytes.indexOf(10, offset);
+              const end = newline < 0 ? bytes.length : newline + 1;
+              lineBytes += end - offset;
+              if (lineBytes > MAX_RADAR_LINE_BYTES)
+                throw new Error(
+                  "Radar 單筆串流資料超過 1 MiB，已停止此來源並保留已取得的結果",
+                );
+              buffer += decoder.decode(bytes.subarray(offset, end), {
+                stream: true,
+              });
+              if (newline >= 0) {
+                await event(buffer);
+                buffer = "";
+                lineBytes = 0;
+              }
+              offset = end;
+            }
             if (chunk.done) {
+              buffer += decoder.decode();
               await event(buffer);
               break;
             }

@@ -16,11 +16,13 @@ export function ChoiceSelect({
   value,
   onValueChange,
   children,
+  maxVisibleItems,
 }: {
   id: string;
   value: string;
   onValueChange: (value: string) => void;
   children: ReactNode;
+  maxVisibleItems?: number;
 }) {
   const items = Children.toArray(children)
     .filter(isValidElement<Choice>)
@@ -40,13 +42,28 @@ export function ChoiceSelect({
       <SelectTrigger id={id} className="w-full min-w-0">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
+      <SelectContent
+        alignItemWithTrigger={false}
+        className={
+          maxVisibleItems
+            ? "[&_[data-slot=select-scroll-up-button]]:hidden [&_[data-slot=select-scroll-down-button]]:hidden"
+            : undefined
+        }
+        style={
+          maxVisibleItems
+            ? {
+                maxHeight: `min(var(--available-height), ${maxVisibleItems * 32 + 8}px)`,
+              }
+            : undefined
+        }
+      >
         <SelectGroup>
           {items.map((item) => (
             <SelectItem
               key={item.value}
               value={item.value}
               disabled={item.disabled}
+              className={maxVisibleItems ? "h-8" : undefined}
             >
               {item.label}
             </SelectItem>

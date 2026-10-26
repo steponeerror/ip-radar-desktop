@@ -188,15 +188,18 @@ export function HistoryView({
               <FieldLabel htmlFor="batch">{t("查詢批次")}</FieldLabel>
               <ChoiceSelect
                 id="batch"
+                maxVisibleItems={5}
                 value={current?.id || ""}
                 onValueChange={(value) => {
                   setBatchId(value);
                   setConfirm(null);
                 }}
               >
-                <ChoiceOption value="" disabled>
-                  {t("尚無紀錄")}
-                </ChoiceOption>
+                {!completed.length && (
+                  <ChoiceOption value="" disabled>
+                    {t("尚無紀錄")}
+                  </ChoiceOption>
+                )}
                 {completed.map((batch) => (
                   <ChoiceOption key={batch.id} value={batch.id}>
                     {label(batch)}

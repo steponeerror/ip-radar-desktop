@@ -17,6 +17,7 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+Radar 單筆串流資料超過 1 MiB，已停止此來源並保留已取得的結果|Radar 单条流数据超过 1 MiB，已停止此来源并保留已获取的结果|A Radar stream record exceeded 1 MiB. This source was stopped; received results were retained.
 紀錄保留與自動清理|记录保留与自动清理|History retention and automatic cleanup
 最多保留批次數|最多保留批次数|Maximum retained batches
 保存期限|保存期限|Retention period

@@ -106,10 +106,50 @@ export function toCsv(input: Row[], locale: Locale = "zh-Hant") {
     ].join("\r\n")
   );
 }
+/** Two passes retain only one batch's source rows at a time. */
+export async function csvFromBatches(
+  ids: string[],
+  loadRows: (id: string) => Promise<Row[]>,
+  locale: Locale = "zh-Hant",
+): Promise<Blob> {
+  const present = new Set(["ip", "country", "city", "score"]);
+  async function scan(id: string) {
+    const rows = await loadRows(id);
+    for (const row of rows) {
+      const record = exportRecord(row, locale);
+      for (const [key] of columns)
+        if (record[key] != null && String(record[key]) !== "") present.add(key);
+    }
+  }
+  for (const id of ids) await scan(id);
+  const selected = columns.filter(([key]) => present.has(key));
+  const parts: Blob[] = [
+    new Blob([
+      "\uFEFF" +
+        selected
+          .map(([, label]) => csvCell(translate(label, locale)))
+          .join(","),
+    ]),
+  ];
+  async function encode(id: string) {
+    const rows = await loadRows(id);
+    if (!rows.length) return;
+    const lines = rows.map((row) => {
+      const record = exportRecord(row, locale);
+      return selected.map(([key]) => csvCell(record[key])).join(",");
+    });
+    parts.push(new Blob(["\r\n", lines.join("\r\n")]));
+  }
+  for (const id of ids) await encode(id);
+  return new Blob(parts, { type: "text/csv;charset=utf-8" });
+}
 export function downloadCsv(rows: Row[], locale: Locale = "zh-Hant") {
-  const url = URL.createObjectURL(
+  downloadCsvBlob(
     new Blob([toCsv(rows, locale)], { type: "text/csv;charset=utf-8" }),
   );
+}
+export function downloadCsvBlob(blob: Blob) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = `ip-radar-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
