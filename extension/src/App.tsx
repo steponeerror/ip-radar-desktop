@@ -9,7 +9,7 @@ import {
   translateError,
   useI18n,
 } from "./i18n";
-import { clipboardIpList, queryInputKey } from "./query-input";
+import { cleanIpInput, clipboardIpList, queryInputKey } from "./query-input";
 import { ResultPanel, QueryExport } from "./ResultPanel";
 import { downloadCsv } from "./csv";
 import { Download } from "lucide-react";
@@ -266,6 +266,7 @@ export default function App() {
   }, [locale]);
   const [ready, setReady] = useState(false);
   const [text, setText] = useState("");
+  const [cleanNotice, setCleanNotice] = useState("");
   const inputEdited = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [view, setView] = useState(
@@ -509,6 +510,7 @@ export default function App() {
                         onChange={(e) => {
                           inputEdited.current = true;
                           setText(e.target.value);
+                          setCleanNotice("");
                         }}
                         onKeyDown={(e) => {
                           const key = queryInputKey(e.nativeEvent);
@@ -540,6 +542,36 @@ export default function App() {
                       <FieldDescription id="ips-shortcuts">
                         {t("Enter 開始查詢 · Alt+Space 換行")}
                       </FieldDescription>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={!text.trim() || busy}
+                          onClick={() => {
+                            const cleaned = cleanIpInput(text);
+                            inputEdited.current = true;
+                            if (cleaned) {
+                              setText(cleaned);
+                              setCleanNotice(
+                                t("已清理並去重，請確認清單後再開始查詢。"),
+                              );
+                            } else {
+                              setCleanNotice(t("找不到有效 IP，已保留原文。"));
+                            }
+                          }}
+                        >
+                          {t("擷取有效 IP")}
+                        </Button>
+                        {cleanNotice && (
+                          <p
+                            role="status"
+                            className="text-xs text-muted-foreground"
+                          >
+                            {cleanNotice}
+                          </p>
+                        )}
+                      </div>
                       {parsed.invalid.length > 0 && (
                         <FieldError>
                           {t("無效項目：")}

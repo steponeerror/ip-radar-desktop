@@ -9,8 +9,7 @@ import {
   type Settings,
   type State,
 } from "./model";
-export const isExtension =
-  !!extensionApi()?.runtime?.id;
+export const isExtension = !!extensionApi()?.runtime?.id;
 export async function send(type: string, data = {}): Promise<State> {
   if (!isExtension) {
     if (type === "get") {
@@ -25,9 +24,31 @@ export async function send(type: string, data = {}): Promise<State> {
       "目前是介面預覽。請在 Chrome 載入 extension/dist 後使用查詢與儲存功能。",
     );
   }
-  const reply = await extensionApi().runtime.sendMessage({ type, ...data });
-  if (reply.error) throw new Error(reply.error);
-  return normalizeState(reply.state);
+  // Shared-state replies must not overwrite storage events delivered while they
+  // were being read. Retry only the read, never the original mutation.
+  const changes = extensionApi().storage?.onChanged;
+  const shared = type !== "batch" && type !== "snapshot";
+  let revision = 0;
+  const listener = (items: Record<string, unknown>, area: string) => {
+    if (
+      area === "local" &&
+      Object.keys(items).some((key) => key.startsWith("radar."))
+    )
+      revision++;
+  };
+  if (shared) changes?.addListener(listener);
+  try {
+    let request = { type, ...data };
+    while (true) {
+      const before = revision;
+      const reply = await extensionApi().runtime.sendMessage(request);
+      if (reply.error) throw new Error(reply.error);
+      if (!shared || before === revision) return normalizeState(reply.state);
+      request = { type: "get" };
+    }
+  } finally {
+    if (shared) changes?.removeListener(listener);
+  }
 }
 export function subscribe(callback: (update: (state: State) => State) => void) {
   if (!isExtension) return () => {};

@@ -17,6 +17,9 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+擷取有效 IP|提取有效 IP|Extract valid IPs
+已清理並去重，請確認清單後再開始查詢。|已清理并去重，请确认清单后再开始查询。|Cleaned and deduplicated. Review the list before starting a lookup.
+找不到有效 IP，已保留原文。|找不到有效 IP，已保留原文。|No valid IPs found. Original text retained.
 網域|网域|Domain
 主機名稱|主机名称|Hostnames
 白名單|白名单|Whitelisted

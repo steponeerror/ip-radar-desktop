@@ -77,7 +77,7 @@ export function parseIps(text: string) {
   const valid = new Set<string>();
   const invalid: string[] = [];
   for (const token of text.split(/[\s,;]+/).filter(Boolean)) {
-    const ip = token.replace(/^\[|\]$/g, "");
+    const ip = /^\[[0-9a-fA-F:.]+\]$/.test(token) ? token.slice(1, -1) : token;
     if (
       /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) &&
       ip
@@ -85,7 +85,7 @@ export function parseIps(text: string) {
         .every((x) => Number(x) <= 255 && (x === "0" || !x.startsWith("0")))
     )
       valid.add(ip);
-    else if (ip.includes(":")) {
+    else if (ip.includes(":") && /^[0-9a-fA-F:.]+$/.test(ip)) {
       try {
         valid.add(new URL(`http://[${ip}]/`).hostname.slice(1, -1));
       } catch {

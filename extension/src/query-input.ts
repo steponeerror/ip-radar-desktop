@@ -31,3 +31,10 @@ export function queryInputKey(event: {
     return "newline";
   if (event.key === "Enter") return "submit";
 }
+
+/** Extract whole tokens only; never repair or truncate a malformed address. */
+export function cleanIpInput(text: string): string | undefined {
+  const tokens = text.split(/[\s,;，；、：="'(){}<>]+/u).filter(Boolean);
+  const ips = [...new Set(tokens.flatMap((token) => parseIps(token).ips))];
+  return ips.length ? ips.join("\n") : undefined;
+}
