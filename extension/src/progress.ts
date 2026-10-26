@@ -16,6 +16,7 @@ export function summarizeBatch(batch: Batch): BatchSummary {
   return {
     id: batch.id,
     createdAt: batch.createdAt,
+    ...(batch.completedAt ? { completedAt: batch.completedAt } : {}),
     total: batch.rows.length,
     finished:
       !!batch.rows.length && batch.rows.every((r) => r.status === "done"),

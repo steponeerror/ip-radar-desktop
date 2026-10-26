@@ -4,6 +4,7 @@ import { BatchBuffer } from "./batch-buffer";
 import { abuseKeyId } from "./abuse-limits";
 import {
   STORAGE,
+  cleanupHistory,
   saveBatch,
   readMeta,
   readIndex,
@@ -101,6 +102,11 @@ async function pump() {
         );
       } finally {
         // Completion/cancellation never reports success before the latest results are durable.
+        if (batchFinished(buffer.batch) && !buffer.batch.completedAt)
+          buffer.update((batch) => ({
+            ...batch,
+            completedAt: new Date().toISOString(),
+          }));
         await buffer.flush();
       }
       await mutate(async () => {
@@ -110,6 +116,7 @@ async function pump() {
           await extensionApi().storage.local.set({ [STORAGE.index]: index });
         }
         if (currentRun === run) currentRun = undefined;
+        await cleanupHistory();
       });
     }
   } finally {
@@ -130,6 +137,12 @@ async function command(message: {
     message.type === "snapshot" ||
     message.type === "batch"
   ) {
+    if (message.type === "get") {
+      await extensionApi().alarms.create("history-cleanup", {
+        periodInMinutes: 60,
+      });
+      await mutate(() => cleanupHistory());
+    }
     const run = currentRun;
     if (run && (!message.id || message.id === run.buffer.batch.id))
       await run.buffer.flush();
@@ -160,9 +173,22 @@ async function command(message: {
       }
       if ("maxQueryIps" in patch && !validQueryLimit(patch.maxQueryIps))
         throw new Error("單次最大查詢數必須是正整數。");
+      if (
+        "historyMaxBatches" in patch &&
+        !validQueryLimit(patch.historyMaxBatches)
+      )
+        throw new Error("保留批次數必須是正整數。");
+      if (
+        "historyRetentionHours" in patch &&
+        (!Number.isSafeInteger(patch.historyRetentionHours) ||
+          patch.historyRetentionHours! < 0)
+      )
+        throw new Error("保存時數必須是非負整數。");
       await extensionApi().storage.local.set({
         [STORAGE.settings]: { ...state.settings, ...patch },
       });
+      if ("historyMaxBatches" in patch || "historyRetentionHours" in patch)
+        await cleanupHistory();
       if (patch.openInTab != null)
         await extensionApi().action.setPopup({
           popup: patch.openInTab ? "" : "index.html?mode=popup",
@@ -191,10 +217,11 @@ async function command(message: {
           errors: [],
         })),
       };
-      const ids = [batch.id, ...state.index.ids].slice(0, 50);
+      const ids = [batch.id, ...state.index.ids];
       await extensionApi().storage.local.set({
         [STORAGE.batch(batch.id)]: batch,
         [STORAGE.index]: {
+          ...state.index,
           ids,
           activeId: batch.id,
           summaries: {
@@ -207,9 +234,7 @@ async function command(message: {
           },
         },
       });
-      const removed = state.index.ids.filter((id) => !ids.includes(id));
-      if (removed.length)
-        await extensionApi().storage.local.remove(removed.map(STORAGE.batch));
+      await cleanupHistory();
     });
     await extensionApi().alarms.create("resume", { periodInMinutes: 1 });
     void pump().catch(console.error);
@@ -225,6 +250,7 @@ async function command(message: {
       const batch = state.batch;
       if (batch) {
         batch.cancelled = true;
+        batch.completedAt = new Date().toISOString();
         batch.rows = batch.rows.map((r) =>
           r.status === "pending"
             ? {
@@ -295,6 +321,8 @@ extensionApi().runtime.onMessage.addListener((message, sender, reply) => {
   return true;
 });
 extensionApi().alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "history-cleanup")
+    void mutate(() => cleanupHistory()).catch(console.error);
   if (alarm.name === "resume") void pump().catch(console.error);
 });
 extensionApi().action.onClicked.addListener(() => {
@@ -308,7 +336,14 @@ async function initialize() {
     await extensionApi().storage.local.setAccessLevel({
       accessLevel: "TRUSTED_CONTEXTS",
     });
-  const state = await mutate(() => readActive(!currentRun));
+  await extensionApi().alarms.create("history-cleanup", {
+    periodInMinutes: 60,
+  });
+  const state = await mutate(async () => {
+    const state = await readActive(!currentRun);
+    await cleanupHistory();
+    return state;
+  });
   await extensionApi().action.setPopup({
     popup: state.settings.openInTab ? "" : "index.html?mode=popup",
   });

@@ -177,3 +177,25 @@ it("groups source scores and verdict before the consensus in CSV", () => {
     '"AbuseIPDB 分數","Radar 威脅信心","Radar 判定","總判定"',
   );
 });
+
+it.each([
+  [0, "success"],
+  [24, "success"],
+  [25, "warning"],
+  [59, "warning"],
+  [60, "danger"],
+  [100, "danger"],
+])(
+  "renders score %s with an accessible shadcn progress bar and %s band",
+  (score, tone) => {
+    const html = renderToStaticMarkup(
+      <FullResult row={abuseRow({ score: Number(score) })} />,
+    );
+    expect(html).toContain('data-slot="progress"');
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain(`aria-valuenow="${score}"`);
+    expect(html).toContain(`aria-valuetext="${score}/100"`);
+    expect(html).toContain(`data-tone="${tone}"`);
+    expect(html).not.toContain("<meter");
+  },
+);

@@ -8,6 +8,8 @@ export interface Settings {
   theme: "dark" | "light";
   openInTab: boolean;
   maxQueryIps: number;
+  historyMaxBatches: number;
+  historyRetentionHours: number;
   language: import("./i18n").Language;
 }
 export const defaults: Settings = {
@@ -19,6 +21,8 @@ export const defaults: Settings = {
   theme: "dark",
   openInTab: false,
   maxQueryIps: 100,
+  historyMaxBatches: 20,
+  historyRetentionHours: 168,
   language: "auto",
 };
 export interface Row {
@@ -42,6 +46,7 @@ export interface Row {
 export interface Batch {
   id: string;
   createdAt: string;
+  completedAt?: string;
   rows: Row[];
   cancelled?: boolean;
   sourceIds?: string[];
@@ -49,6 +54,7 @@ export interface Batch {
 export interface BatchSummary {
   id: string;
   createdAt?: string;
+  completedAt?: string;
   total?: number;
   finished: boolean;
   cancelled?: boolean;
@@ -136,6 +142,14 @@ export function normalizeState(state?: State): State {
     settings: {
       ...defaults,
       ...state?.settings,
+      historyMaxBatches: validQueryLimit(state?.settings?.historyMaxBatches)
+        ? state!.settings.historyMaxBatches
+        : defaults.historyMaxBatches,
+      historyRetentionHours:
+        Number.isSafeInteger(state?.settings?.historyRetentionHours) &&
+        state!.settings.historyRetentionHours >= 0
+          ? state!.settings.historyRetentionHours
+          : defaults.historyRetentionHours,
       maxQueryIps: validQueryLimit(state?.settings?.maxQueryIps)
         ? state.settings.maxQueryIps
         : defaults.maxQueryIps,

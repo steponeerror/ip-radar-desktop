@@ -1,3 +1,4 @@
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Collapsible,
@@ -216,15 +217,13 @@ function AbuseBody({ data: a }: { data: AbuseSection }) {
   const { t, locale } = useI18n();
   return (
     <div className="flex flex-col gap-3">
-      <meter
-        className="w-full"
-        min={0}
-        max={100}
-        low={25}
-        high={60}
-        optimum={0}
+      <Progress
+        className="w-full [&_[data-slot=progress-track]]:h-2"
+        data-tone={abuseScoreBand(a.score)}
         value={a.score}
+        max={100}
         aria-label={t("AbuseIPDB 分數")}
+        aria-valuetext={`${a.score}/100`}
       />
       <Facts
         items={[

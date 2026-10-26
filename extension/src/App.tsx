@@ -1,3 +1,4 @@
+import { RetentionSettings } from "./RetentionSettings";
 import { summarizeBatch } from "./progress";
 import { loadHistoryBatch } from "./client";
 import { AbuseStatus } from "./AbuseStatus";
@@ -671,6 +672,20 @@ export default function App() {
                         settings: { ...s.settings, ...settings },
                       }));
                     else setState(await send("settings", { patch: settings }));
+                  }}
+                />
+              )}
+              {ready && (
+                <RetentionSettings
+                  settings={state.settings}
+                  onSave={async (patch) => {
+                    if (isExtension)
+                      setState(await send("settings", { patch }));
+                    else
+                      setState((state) => ({
+                        ...state,
+                        settings: { ...state.settings, ...patch },
+                      }));
                   }}
                 />
               )}

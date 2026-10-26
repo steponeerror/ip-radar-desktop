@@ -283,3 +283,17 @@ footer {
   padding-block: 4px;
   border-bottom: 1px solid var(--border);
 }
+
+/* Use the same score bands and light/dark palette as the score badge. */
+[data-slot="progress"][data-tone="success"] {
+  --score-color: var(--signal-success);
+}
+[data-slot="progress"][data-tone="warning"] {
+  --score-color: var(--signal-warning);
+}
+[data-slot="progress"][data-tone="danger"] {
+  --score-color: var(--signal-danger);
+}
+[data-slot="progress"][data-tone] [data-slot="progress-indicator"] {
+  background-color: var(--score-color);
+}

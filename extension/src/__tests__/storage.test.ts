@@ -66,6 +66,7 @@ it("coalesces streamed results into one batch write without reading 49 historica
   vi.resetModules();
   const state = initialState();
   state.settings.abuseEnabled = false;
+  state.settings.historyMaxBatches = 50;
   state.batches = Array.from({ length: 49 }, (_, i) => batch(`history-${i}`));
   const storage = memoryStorage(state);
   let listener: Function = () => {};

@@ -130,7 +130,10 @@ it("worker startup recovers a completed batch whose activeId survived", async ()
   const state = await (await import("../storage")).readState();
   expect(state.batches[0].rows.every((r) => r.status === "done")).toBe(true);
   expect(state.summaries![0].finished).toBe(true);
-  expect(chrome.alarms.create).not.toHaveBeenCalled();
+  expect(chrome.alarms.create).toHaveBeenCalledExactlyOnceWith(
+    "history-cleanup",
+    { periodInMinutes: 60 },
+  );
 });
 it("retains actual request spacing across batches after a network failure", async () => {
   vi.useFakeTimers();

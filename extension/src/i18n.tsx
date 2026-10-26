@@ -17,6 +17,21 @@ export function resolveLanguage(
 }
 // Source keys are the original Traditional Chinese UI strings.
 const entries = `
+紀錄保留與自動清理|记录保留与自动清理|History retention and automatic cleanup
+最多保留批次數|最多保留批次数|Maximum retained batches
+保存期限|保存期限|Retention period
+天|天|Days
+小時|小时|Hours
+關閉時間清理|关闭时间清理|Disable time-based cleanup
+保存數量（正整數）|保存数量（正整数）|Duration (positive integer)
+從完成或停止時計算期限；超過數量或期限的紀錄會自動刪除。正在查詢的批次不刪除。|从完成或停止时计算期限；超过数量或期限的记录会自动删除。正在查询的批次不删除。|Retention starts at completion or stop. Records exceeding either limit are deleted; running batches are preserved.
+儲存後立即套用清理，刪除無法復原，需要保留的紀錄請先匯出。|保存后立即应用清理，删除无法恢复，需要保留的记录请先导出。|Saving applies cleanup immediately. Deletion cannot be undone; export records you need first.
+每小時及開啟時檢查；舊紀錄沒有完成時間時，從首次檢查起算期限。|每小时及打开时检查；旧记录没有完成时间时，从首次检查起算期限。|Checked hourly and on opening. Older records without a completion time start their retention period at the first check.
+儲存保留設定|保存保留设置|Save retention settings
+保留設定已儲存。|保留设置已保存。|Retention settings saved.
+保留批次數必須是正整數。|保留批次数必须是正整数。|The batch limit must be a positive integer.
+保存時數必須是非負整數。|保存小时数必须是非负整数。|Retention hours must be a nonnegative integer.
+
 擷取有效 IP|提取有效 IP|Extract valid IPs
 已清理並去重，請確認清單後再開始查詢。|已清理并去重，请确认清单后再开始查询。|Cleaned and deduplicated. Review the list before starting a lookup.
 找不到有效 IP，已保留原文。|找不到有效 IP，已保留原文。|No valid IPs found. Original text retained.

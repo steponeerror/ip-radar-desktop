@@ -18,6 +18,7 @@ export interface BatchIndex {
   ids: string[];
   summaries?: Record<string, BatchSummary>;
   activeId?: string;
+  cleanupPending?: string[];
 }
 let initialized: Promise<void> | undefined;
 export function initializeStorage(): Promise<void> {
@@ -145,4 +146,61 @@ export function applyStorageChanges(
     summaries: index ? indexSummaries(index) : state.summaries,
     batches,
   };
+}
+
+/** Caller holds the background mutation lock. Reads summaries, never full history. */
+export async function cleanupHistory(now = Date.now()) {
+  const { settings, index } = await readMeta();
+  if (index.cleanupPending?.length) {
+    await extensionApi().storage.local.remove(
+      index.cleanupPending.map(STORAGE.batch),
+    );
+    delete index.cleanupPending;
+    await extensionApi().storage.local.set({ [STORAGE.index]: index });
+  }
+  const expired = new Set<string>();
+  let changed = false;
+  for (const id of index.ids) {
+    const summary = index.summaries?.[id];
+    if (id === index.activeId || !summary?.finished) continue;
+    // Older summaries lack a completion time: grant a full retention period
+    // starting at the first cleanup, without reading/migrating their batch data.
+    if (!Number.isFinite(Date.parse(summary.completedAt ?? ""))) {
+      summary.completedAt = new Date(now).toISOString();
+      changed = true;
+    }
+    if (
+      settings.historyRetentionHours > 0 &&
+      now - Date.parse(summary.completedAt!) >=
+        settings.historyRetentionHours * 3600000
+    )
+      expired.add(id);
+  }
+  let remaining = index.ids.length - expired.size;
+  for (const id of [...index.ids].reverse()) {
+    if (remaining <= settings.historyMaxBatches) break;
+    if (
+      !expired.has(id) &&
+      id !== index.activeId &&
+      index.summaries?.[id]?.finished
+    ) {
+      expired.add(id);
+      remaining--;
+    }
+  }
+  if (expired.size) {
+    index.ids = index.ids.filter((id) => !expired.has(id));
+    for (const id of expired) delete index.summaries![id];
+    index.cleanupPending = [...expired];
+    changed = true;
+  }
+  if (changed)
+    await extensionApi().storage.local.set({ [STORAGE.index]: index });
+  if (index.cleanupPending?.length) {
+    await extensionApi().storage.local.remove(
+      index.cleanupPending.map(STORAGE.batch),
+    );
+    delete index.cleanupPending;
+    await extensionApi().storage.local.set({ [STORAGE.index]: index });
+  }
 }

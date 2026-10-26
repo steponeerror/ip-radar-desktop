@@ -26,6 +26,7 @@ export class BatchBuffer {
     this.update((batch) => ({
       ...batch,
       cancelled: true,
+      completedAt: new Date().toISOString(),
       rows: batch.rows.map((row) =>
         row.status === "pending"
           ? {
