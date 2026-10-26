@@ -24,11 +24,14 @@ test("firefox manifest derives from the chrome manifest", () => {
     version: chromeVersion,
     ...chromeRest
   } = chrome;
-  expect(version).toBe(chromeVersion === "0.1.24" ? "0.1.24.2" : chromeVersion);
+  expect(version).toBe(
+    { "0.1.24": "0.1.24.2", "0.1.25": "0.1.25.1" }[chromeVersion] ??
+      chromeVersion,
+  );
   expect(rest).toEqual(chromeRest);
 });
 
 test("Firefox signing revision applies only to the rebuilt release", () => {
   expect(firefoxManifest({ version: "0.1.24" }).version).toBe("0.1.24.2");
-  expect(firefoxManifest({ version: "0.1.25" }).version).toBe("0.1.25");
+  expect(firefoxManifest({ version: "0.1.25" }).version).toBe("0.1.25.1");
 });

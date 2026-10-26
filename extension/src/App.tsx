@@ -540,7 +540,7 @@ export default function App() {
                         className="min-h-28 max-h-48"
                       />
                       <FieldDescription id="ips-shortcuts">
-                        {t("Enter 開始查詢 · Alt+Space 換行")}
+                        {t("Enter 開始查詢 · Shift+Enter 換行")}
                       </FieldDescription>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button

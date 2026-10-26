@@ -51,7 +51,7 @@ API 未提供有效等待時間，暫採 60 秒冷卻。|API 未提供有效等�
 AbuseIPDB 額度已用完，已停止此來源，未查詢剩餘 IP|AbuseIPDB 额度已用完，已停止此来源，未查询剩余 IP|AbuseIPDB quota exhausted; this source stopped and remaining IPs were not queried
 AbuseIPDB 需冷卻，已停止此來源，未查詢剩餘 IP|AbuseIPDB 需冷却，已停止此来源，未查询剩余 IP|AbuseIPDB cooldown required; this source stopped and remaining IPs were not queried
 
-Enter 開始查詢 · Alt+Space 換行|Enter 开始查询 · Alt+Space 换行|Enter to search · Alt+Space for a new line
+Enter 開始查詢 · Shift+Enter 換行|Enter 开始查询 · Shift+Enter 换行|Enter to search · Shift+Enter for a new line
 紀錄管理與更新|记录管理与更新|History management & updates
 目前版本|当前版本|Current version
 檢查更新|检查更新|Check for updates

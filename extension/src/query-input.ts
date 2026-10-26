@@ -16,6 +16,7 @@ export function queryInputKey(event: {
   key: string;
   code: string;
   altKey: boolean;
+  shiftKey: boolean;
   ctrlKey: boolean;
   metaKey: boolean;
   isComposing: boolean;
@@ -23,13 +24,21 @@ export function queryInputKey(event: {
 }) {
   if (event.isComposing || event.keyCode === 229) return;
   if (
-    event.altKey &&
+    event.shiftKey &&
+    !event.altKey &&
     !event.ctrlKey &&
     !event.metaKey &&
-    event.code === "Space"
+    event.key === "Enter"
   )
     return "newline";
-  if (event.key === "Enter") return "submit";
+  if (
+    event.key === "Enter" &&
+    !event.shiftKey &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  )
+    return "submit";
 }
 
 /** Extract whole tokens only; never repair or truncate a malformed address. */
