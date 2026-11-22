@@ -40,6 +40,22 @@ export function classLabel(type: string) {
   const key = type.replace(/-/g, "_");
   return classLabels[key] || key.replace(/_/g, " ");
 }
+/** scanner 分类下 scanner_ranges 证人行自带的厂商标签(「研究扫描 · X(自报段)」
+ *  简体数据字面量直出)。只认 scanner_ranges(噪声守门,同 web 端
+ *  ResultTable.scannerVendorTags),跨证人行去重保序。 */
+export function scannerVendors(d: LookupResult | undefined): string[] {
+  const out: string[] = [];
+  for (const [type, ca] of Object.entries(d?.classifications ?? {})) {
+    if (type.replace(/-/g, "_") !== "scanner" || !ca.detected) continue;
+    for (const row of ca.details ?? []) {
+      if (row.source !== "scanner_ranges") continue;
+      for (const label of row.native_categories ?? []) {
+        if (label && !out.includes(label)) out.push(label);
+      }
+    }
+  }
+  return out;
+}
 export function resultOf(row: Row) {
   const sections = row.sections ?? [];
   const radar = sections.find(

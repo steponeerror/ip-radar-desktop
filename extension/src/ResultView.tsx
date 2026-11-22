@@ -34,6 +34,7 @@ import {
 } from "../../shared/intelligence";
 import {
   resultOf,
+  scannerVendors,
   verdictLabels,
   classLabel,
   countryLabel,
@@ -136,6 +137,7 @@ function RadarBody({ data: d }: { data: LookupResult }) {
   const detected = Object.entries(d.classifications ?? {})
     .filter(([, c]) => c.detected)
     .sort((a, b) => b[1].confidence - a[1].confidence);
+  const vendors = scannerVendors(d);
   return (
     <div className="flex flex-col gap-3">
       <h4 className="text-sm font-medium">{t("威脅分類")}</h4>
@@ -165,6 +167,11 @@ function RadarBody({ data: d }: { data: LookupResult }) {
             </div>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
+          {vendors.length > 0 && (
+            <p className="break-words text-xs text-muted-foreground">
+              {vendors.join("、")}
+            </p>
+          )}
           {detected
             .filter(([, c]) => c.malware_names?.length)
             .map(([key, c]) => (

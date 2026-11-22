@@ -33,6 +33,9 @@ export interface LookupResult {
       detected: boolean;
       confidence: number;
       malware_names: string[];
+      // 逐源证人行;scanner_ranges 行含 #214 钉死的自报段标签
+      // (此处只声明消费子集,完整形状见 ip-radar 仓 frontend/src/api.ts 的 ClassificationDetail)
+      details?: { source: string; native_categories?: string[] }[];
     }
   >;
 }
