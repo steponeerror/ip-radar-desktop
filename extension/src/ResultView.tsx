@@ -164,14 +164,14 @@ function RadarBody({ data: d }: { data: LookupResult }) {
                   {t(classLabel(key))} {c.confidence}
                 </Badge>
               ))}
+              {vendors.map((label) => (
+                <Badge key={label} variant="outline">
+                  {label}
+                </Badge>
+              ))}
             </div>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
-          {vendors.length > 0 && (
-            <p className="break-words text-xs text-muted-foreground">
-              {vendors.join("、")}
-            </p>
-          )}
           {detected
             .filter(([, c]) => c.malware_names?.length)
             .map(([key, c]) => (

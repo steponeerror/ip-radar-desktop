@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FullResult } from "../ResultView";
+import { toCsv } from "../csv";
 import { scannerVendors } from "../result-model";
+import type { Row } from "../model";
 import type { LookupResult } from "../../../shared/intelligence";
 
 const radarWith = (
@@ -113,5 +117,72 @@ describe("scannerVendors", () => {
         }),
       ),
     ).toEqual([]);
+  });
+});
+
+const scannerRow: Row = {
+  ip: "205.210.31.99",
+  status: "done",
+  queriedAt: "",
+  errors: [],
+  sections: [
+    {
+      sourceId: "ipradar",
+      status: "ok",
+      data: {
+        ip: "205.210.31.99",
+        threat: { verdict: "malicious", confidence: 95, types: [], is_cdn: false },
+        classifications: {
+          scanner: {
+            verdict: "malicious",
+            detected: true,
+            confidence: 95,
+            malware_names: [],
+            details: [
+              {
+                source: "scanner_ranges",
+                native_categories: [
+                  "研究扫描 · BitSight(自报段)",
+                  "研究扫描 · Censys(自报段)",
+                ],
+              },
+              // sw_scanners 计数形标签不得混入
+              { source: "sw_scanners", native_categories: ["12 · BitSight(3)"] },
+            ],
+          },
+          blacklist: {
+            verdict: "suspicious",
+            detected: true,
+            confidence: 84,
+            malware_names: [],
+          },
+        },
+      } as LookupResult,
+    },
+  ],
+};
+
+describe("研究扫描厂商标签呈现", () => {
+  it("以 Badge 标签与分类标签同排呈现,不再另起小字行", () => {
+    const full = renderToStaticMarkup(<FullResult row={scannerRow} />);
+    expect(full).toContain("掃描 95");
+    expect(full).toContain("黑名單 84");
+    const chips =
+      full.match(/<span[^>]*data-slot="badge"[^>]*>[^<]*研究扫描[^<]*<\/span>/g) ??
+      [];
+    expect(chips.map((c) => c.replace(/<[^>]*>/g, ""))).toEqual([
+      "研究扫描 · BitSight(自报段)",
+      "研究扫描 · Censys(自报段)",
+    ]);
+    // 每个标签独立成 chip:不再用顿号串成一行小字
+    expect(full).not.toContain("、研究扫描 · Censys(自报段)");
+  });
+
+  it("CSV 分类命中列追加自报段厂商标签,计数形标签不入列", () => {
+    const csv = toCsv([scannerRow]);
+    expect(csv).toContain(
+      '"掃描: malicious / 95 | 黑名單: suspicious / 84 | 研究扫描 · BitSight(自报段) | 研究扫描 · Censys(自报段)"',
+    );
+    expect(csv).not.toContain("12 · BitSight(3)");
   });
 });

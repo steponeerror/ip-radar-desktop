@@ -1,6 +1,6 @@
 import { translate, translateError, type Locale } from "./i18n";
 import type { Row } from "./model";
-import { resultOf, classLabel } from "./result-model";
+import { resultOf, classLabel, scannerVendors } from "./result-model";
 const columns: [string, string][] = [
   ["ip", "IP"],
   ["country", "地區代碼"],
@@ -73,10 +73,14 @@ export function exportRecord(
     ispConfidence: r.radar?.as_name?.confidence,
     range: r.radar?.ip_range?.value,
     rangeConfidence: r.radar?.ip_range?.confidence,
-    classifications: r.classes.map(
-      (c) =>
-        `${translate(classLabel(c.type), locale)}: ${c.verdict} / ${c.confidence}`,
-    ),
+    classifications: [
+      ...r.classes.map(
+        (c) =>
+          `${translate(classLabel(c.type), locale)}: ${c.verdict} / ${c.confidence}`,
+      ),
+      // 自报段厂商标签(「研究扫描 · X(自报段)」)追加在分类命中列,服务端字面量直出
+      ...scannerVendors(r.radar),
+    ],
     malwareNames: Object.values(r.radar?.classifications ?? {})
       .filter((c) => c.detected)
       .flatMap((c) => c.malware_names || []),
